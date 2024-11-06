@@ -16,10 +16,11 @@ import "data_transfer_objects.proto";
 import "drawing_dto.proto";
 import "gamedata.proto";
 
-message AddTopologyMsg {
+message UpdateTopologyMsg {
   string zone_guid = 1;
   AreaDto area = 2;
-  TopologyTypeDto type = 3;
+  bool erase = 3;
+  TopologyTypeDto type = 4;
 }
 
 message BootPlayerMsg {
@@ -172,12 +173,6 @@ message RemoveTokenMsg {
 message RemoveTokensMsg {
   string zone_guid = 1;
   repeated string token_guid = 2;
-}
-
-message RemoveTopologyMsg {
-  string zone_guid = 1;
-  AreaDto area = 2;
-  TopologyTypeDto type = 3;
 }
 
 message RemoveZoneMsg {

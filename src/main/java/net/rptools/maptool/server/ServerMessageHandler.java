@@ -78,8 +78,8 @@ public class ServerMessageHandler implements MessageHandler {
       }
 
       switch (msgType) {
-        case ADD_TOPOLOGY_MSG -> {
-          handle(msg.getAddTopologyMsg());
+        case UPDATE_TOPOLOGY_MSG -> {
+          handle(msg.getUpdateTopologyMsg());
           sendToClients(id, msg);
         }
         case BRING_TOKENS_TO_FRONT_MSG -> handle(msg.getBringTokensToFrontMsg());
@@ -169,10 +169,6 @@ public class ServerMessageHandler implements MessageHandler {
         }
         case REMOVE_TOKENS_MSG -> {
           handle(msg.getRemoveTokensMsg());
-          sendToClients(id, msg);
-        }
-        case REMOVE_TOPOLOGY_MSG -> {
-          handle(msg.getRemoveTopologyMsg());
           sendToClients(id, msg);
         }
         case REMOVE_ZONE_MSG -> {
@@ -493,17 +489,6 @@ public class ServerMessageHandler implements MessageHandler {
         });
   }
 
-  private void handle(RemoveTopologyMsg msg) {
-    EventQueue.invokeLater(
-        () -> {
-          var zoneGUID = GUID.valueOf(msg.getZoneGuid());
-          var area = Mapper.map(msg.getArea());
-          var topologyType = Zone.TopologyType.valueOf(msg.getType().name());
-          Zone zone = server.getCampaign().getZone(zoneGUID);
-          zone.removeTopology(area, topologyType);
-        });
-  }
-
   private void handle(RemoveTokensMsg msg) {
     EventQueue.invokeLater(
         () -> {
@@ -677,14 +662,15 @@ public class ServerMessageHandler implements MessageHandler {
         });
   }
 
-  private void handle(AddTopologyMsg addTopologyMsg) {
+  private void handle(UpdateTopologyMsg updateTopologyMsg) {
     EventQueue.invokeLater(
         () -> {
-          var zoneGUID = GUID.valueOf(addTopologyMsg.getZoneGuid());
-          var area = Mapper.map(addTopologyMsg.getArea());
-          var topologyType = Zone.TopologyType.valueOf(addTopologyMsg.getType().name());
+          var zoneGUID = GUID.valueOf(updateTopologyMsg.getZoneGuid());
+          var area = Mapper.map(updateTopologyMsg.getArea());
+          var erase = updateTopologyMsg.getErase();
+          var topologyType = Zone.TopologyType.valueOf(updateTopologyMsg.getType().name());
           Zone zone = server.getCampaign().getZone(zoneGUID);
-          zone.addTopology(area, topologyType);
+          zone.updateTopology(area, erase, topologyType);
         });
   }
 

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import net.rptools.lib.MD5Key;
 import net.rptools.maptool.client.functions.ExecFunction;
 import net.rptools.maptool.client.functions.MacroLinkFunction;
@@ -392,23 +393,18 @@ public class ServerCommandClientImpl implements ServerCommand {
     makeServerCall(Message.newBuilder().setToggleTokenMoveWaypointMsg(msg).build());
   }
 
-  public void addTopology(GUID zoneGUID, Area area, Zone.TopologyType topologyType) {
+  @Override
+  public void updateTopology(Zone zone, Area area, boolean erase, Zone.TopologyType topologyType) {
     var msg =
-        AddTopologyMsg.newBuilder()
-            .setZoneGuid(zoneGUID.toString())
-            .setType(TopologyTypeDto.valueOf(topologyType.name()))
-            .setArea(Mapper.map(area));
-
-    makeServerCall(Message.newBuilder().setAddTopologyMsg(msg).build());
-  }
-
-  public void removeTopology(GUID zoneGUID, Area area, Zone.TopologyType topologyType) {
-    var msg =
-        RemoveTopologyMsg.newBuilder()
-            .setZoneGuid(zoneGUID.toString())
+        UpdateTopologyMsg.newBuilder()
+            .setZoneGuid(zone.getId().toString())
             .setArea(Mapper.map(area))
+            .setErase(erase)
             .setType(TopologyTypeDto.valueOf(topologyType.name()));
-    makeServerCall(Message.newBuilder().setRemoveTopologyMsg(msg).build());
+
+    // Update locally as well.
+    zone.updateTopology(area, erase, topologyType);
+    makeServerCall(Message.newBuilder().setUpdateTopologyMsg(msg).build());
   }
 
   public void exposePCArea(GUID zoneGUID) {
@@ -624,6 +620,20 @@ public class ServerCommandClientImpl implements ServerCommand {
   }
 
   @Override
+  public void setTokenTopology(Token token, @Nullable Area area, Zone.TopologyType topologyType) {
+    if (area == null) {
+      // Will be converted back to null on the other end.
+      area = new Area();
+    }
+
+    updateTokenProperty(
+        token,
+        Token.Update.setTopology,
+        TokenPropertyValueDto.newBuilder().setTopologyType(topologyType.name()).build(),
+        TokenPropertyValueDto.newBuilder().setArea(Mapper.map(area)).build());
+  }
+
+  @Override
   public void updateTokenProperty(Token token, Token.Update update, int value) {
     updateTokenProperty(
         token, update, TokenPropertyValueDto.newBuilder().setIntValue(value).build());
@@ -755,16 +765,6 @@ public class ServerCommandClientImpl implements ServerCommand {
         TokenPropertyValueDto.newBuilder().setBoolValue(value1).build(),
         TokenPropertyValueDto.newBuilder().setIntValue(value2).build(),
         TokenPropertyValueDto.newBuilder().setIntValue(value3).build());
-  }
-
-  @Override
-  public void updateTokenProperty(
-      Token token, Token.Update update, Zone.TopologyType topologyType, Area area) {
-    updateTokenProperty(
-        token,
-        update,
-        TokenPropertyValueDto.newBuilder().setTopologyType(topologyType.name()).build(),
-        TokenPropertyValueDto.newBuilder().setArea(Mapper.map(area)).build());
   }
 
   @Override

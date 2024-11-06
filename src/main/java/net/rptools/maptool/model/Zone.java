@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import net.rptools.lib.MD5Key;
-import net.rptools.maptool.client.AppPreferences;
+import net.rptools.maptool.client.AppStatePersisted;
 import net.rptools.maptool.client.AppUtil;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.tool.drawing.UndoPerZone;
@@ -527,17 +527,6 @@ public class Zone {
     this.tokenSelection = tokenSelection;
   }
 
-  /**
-   * @return the distance in map pixels at a 1:1 zoom
-   */
-  public int getTokenVisionInPixels() {
-    if (tokenVisionDistance == 0) {
-      // TODO: This is here to provide transition between pre 1.3b19 an 1.3b19. Remove later
-      tokenVisionDistance = DEFAULT_TOKEN_VISION_DISTANCE;
-    }
-    return Double.valueOf(tokenVisionDistance * grid.getSize() / getUnitsPerCell()).intValue();
-  }
-
   public void setFogPaint(DrawablePaint paint) {
     fogPaint = paint;
   }
@@ -1024,7 +1013,7 @@ public class Zone {
    * @param area the area
    * @param topologyType the type of the topology
    */
-  public void addTopology(Area area, TopologyType topologyType) {
+  public void updateTopology(Area area, boolean erase, TopologyType topologyType) {
     var topology =
         switch (topologyType) {
           case WALL_VBL -> this.topology;
@@ -1033,41 +1022,14 @@ public class Zone {
           case COVER_VBL -> coverVbl;
           case MBL -> topologyTerrain;
         };
-    topology.add(area);
+
+    if (erase) {
+      topology.subtract(area);
+    } else {
+      topology.add(area);
+    }
 
     new MapToolEventBus().getMainEventBus().post(new TopologyChanged(this));
-  }
-
-  public void addTopology(Area area) {
-    for (var topologyType : getTopologyTypes()) {
-      addTopology(area, topologyType);
-    }
-  }
-
-  /**
-   * Subtract the area from the topology, and fire the event TOPOLOGY_CHANGED
-   *
-   * @param area the area
-   * @param topologyType the type of the topology
-   */
-  public void removeTopology(Area area, TopologyType topologyType) {
-    var topology =
-        switch (topologyType) {
-          case WALL_VBL -> this.topology;
-          case HILL_VBL -> hillVbl;
-          case PIT_VBL -> pitVbl;
-          case COVER_VBL -> coverVbl;
-          case MBL -> topologyTerrain;
-        };
-    topology.subtract(area);
-
-    new MapToolEventBus().getMainEventBus().post(new TopologyChanged(this));
-  }
-
-  public void removeTopology(Area area) {
-    for (var topologyType : getTopologyTypes()) {
-      removeTopology(area, topologyType);
-    }
   }
 
   /** Fire the event TOPOLOGY_CHANGED. */
@@ -1376,7 +1338,7 @@ public class Zone {
 
   public TopologyTypeSet getTopologyTypes() {
     if (topologyTypes == null) {
-      topologyTypes = AppPreferences.getTopologyTypes();
+      topologyTypes = AppStatePersisted.getTopologyTypes();
     }
 
     return topologyTypes;
@@ -2101,6 +2063,11 @@ public class Zone {
   // Backward compatibility
   @SuppressWarnings("ConstantConditions")
   protected Object readResolve() {
+    if (tokenVisionDistance == 0) {
+      // 1.3b19
+      tokenVisionDistance = DEFAULT_TOKEN_VISION_DISTANCE;
+    }
+
     if ("".equals(playerAlias) || name.equals(playerAlias)) {
       // Don't keep redundant player aliases around. The display name will default to the name if
       // no player alias is set.

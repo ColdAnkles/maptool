@@ -858,12 +858,16 @@ public class Token implements Cloneable {
     return facing != null;
   }
 
-  public void setFacing(Integer facing) {
-    while (facing != null && (facing > 180 || facing < -179)) {
+  public void setFacing(int facing) {
+    while (facing > 180 || facing < -179) {
       facing += facing > 180 ? -360 : 0;
       facing += facing < -179 ? 360 : 0;
     }
     this.facing = facing;
+  }
+
+  public void removeFacing() {
+    this.facing = null;
   }
 
   /**
@@ -874,34 +878,21 @@ public class Token implements Cloneable {
    *
    * @return null or angle in degrees
    */
-  public Integer getFacing() {
-    return facing;
+  public int getFacing() {
+    // -90° is natural alignment. TODO This should really be a per grid setting
+    return facing == null ? -90 : facing;
   }
 
   /**
    * This returns the rotation of the facing of the token from the default facing of down or -90.
-   * Positive for CW and negative for CCW.
+   *
+   * <p>Positive for CW and negative for CCW. The range is currently from -270° (inclusive) to +90°
+   * (exclusive), but callers should not rely on this.
    *
    * @return angle in degrees
    */
-  public Integer getFacingInDegrees() {
-    if (facing == null) {
-      return 0;
-    } else {
-      return -(facing + 90);
-    }
-  }
-
-  public Integer getFacingInRealDegrees() {
-    if (facing == null) {
-      return 270;
-    }
-
-    if (facing >= 0) {
-      return facing;
-    } else {
-      return facing + 360;
-    }
+  public int getFacingInDegrees() {
+    return -getFacing() - 90;
   }
 
   public boolean getHasSight() {
@@ -1418,6 +1409,10 @@ public class Token implements Cloneable {
    * @param topology the topology area to set.
    */
   public void setTopology(Zone.TopologyType topologyType, @Nullable Area topology) {
+    if (topology != null && topology.isEmpty()) {
+      topology = null;
+    }
+
     switch (topologyType) {
       case WALL_VBL -> vbl = topology;
       case HILL_VBL -> hillVbl = topology;
@@ -2714,6 +2709,7 @@ public class Token implements Cloneable {
     boolean lightChanged = false;
     boolean macroChanged = false;
     boolean panelLookChanged = false; // appearance of token in a panel changed
+    boolean topologyChanged = false;
     switch (update) {
       case setState:
         var state = parameters.get(0).getStringValue();
@@ -2782,7 +2778,7 @@ public class Token implements Cloneable {
         setFacing(parameters.get(0).getIntValue());
         break;
       case removeFacing:
-        setFacing(null);
+        removeFacing();
         break;
       case clearAllOwners:
         clearAllOwners();
@@ -2880,10 +2876,7 @@ public class Token implements Cloneable {
         {
           final var topologyType = Zone.TopologyType.valueOf(parameters.get(0).getTopologyType());
           setTopology(topologyType, Mapper.map(parameters.get(1).getArea()));
-          if (!hasTopology(topologyType)) { // if topology removed
-            zone.tokenTopologyChanged(); // if token lost topology, TOKEN_CHANGED won't update
-            // topology
-          }
+          topologyChanged = true;
           break;
         }
       case setImageAsset:
@@ -2991,6 +2984,9 @@ public class Token implements Cloneable {
     }
     if (panelLookChanged) {
       zone.tokenPanelChanged(this);
+    }
+    if (topologyChanged) {
+      zone.tokenTopologyChanged();
     }
     zone.tokenChanged(this); // fire Event.TOKEN_CHANGED, which updates topology if token has VBL
   }
