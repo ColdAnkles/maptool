@@ -26,7 +26,7 @@
           </grid>
         </constraints>
         <properties>
-          <name value="vblImmunityTab"/>
+          <name value="TabPane"/>
           <visible value="true"/>
         </properties>
         <border type="none"/>
