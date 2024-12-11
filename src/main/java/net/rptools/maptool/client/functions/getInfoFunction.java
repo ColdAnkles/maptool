@@ -26,6 +26,7 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentSkipListSet;
 import javax.swing.*;
+import net.rptools.maptool.client.AppConstants;
 import net.rptools.maptool.client.AppPreferences;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.MapToolExpressionParser;
@@ -260,7 +261,9 @@ public class getInfoFunction extends AbstractFunction {
     ConcurrentSkipListSet<HTMLOverlayManager> registeredOverlays =
         MapTool.getFrame().getOverlayPanel().getOverlays();
     for (HTMLOverlayManager o : registeredOverlays) {
-      overlays.add(o.getName(), o.getProperties());
+      if (!o.getName().startsWith(AppConstants.INTERNAL_FRAME_PREFIX)) {
+        overlays.add(o.getName(), o.getProperties());
+      }
     }
     cinfo.add("overlays", overlays);
 

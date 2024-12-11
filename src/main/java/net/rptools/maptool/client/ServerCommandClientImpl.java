@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import net.rptools.lib.MD5Key;
@@ -36,6 +37,7 @@ import net.rptools.maptool.model.gamedata.proto.GameDataDto;
 import net.rptools.maptool.model.gamedata.proto.GameDataValueDto;
 import net.rptools.maptool.model.library.addon.TransferableAddOnLibrary;
 import net.rptools.maptool.model.player.Player;
+import net.rptools.maptool.model.topology.WallTopology;
 import net.rptools.maptool.server.Mapper;
 import net.rptools.maptool.server.ServerCommand;
 import net.rptools.maptool.server.ServerMessageHandler;
@@ -58,7 +60,18 @@ public class ServerCommandClientImpl implements ServerCommand {
 
   public ServerCommandClientImpl(MapToolClient client) {
     this.client = client;
-    movementUpdateQueue.start();
+  }
+
+  public void start() {
+    try {
+      movementUpdateQueue.start();
+    } catch (IllegalThreadStateException e) {
+      log.error("ServerCommand was already started", e);
+    }
+  }
+
+  public void stop() {
+    movementUpdateQueue.stopRunning();
   }
 
   public void heartbeat(String data) {
@@ -92,6 +105,15 @@ public class ServerCommandClientImpl implements ServerCommand {
     MapTool.getFrame().setTitle();
     var msg = SetCampaignNameMsg.newBuilder().setName(name);
     makeServerCall(Message.newBuilder().setSetCampaignNameMsg(msg).build());
+  }
+
+  public void setLandingMap(@Nullable GUID landingMapId) {
+    client.getCampaign().setLandingMapId(landingMapId);
+    var msg = SetCampaignLandingMapMsg.newBuilder();
+    if (landingMapId != null) {
+      msg.setLandingMapId(landingMapId.toString());
+    }
+    makeServerCall(Message.newBuilder().setSetCampaignLandingMapMsg(msg).build());
   }
 
   public void setVisionType(GUID zoneGUID, VisionType visionType) {
@@ -393,18 +415,28 @@ public class ServerCommandClientImpl implements ServerCommand {
     makeServerCall(Message.newBuilder().setToggleTokenMoveWaypointMsg(msg).build());
   }
 
-  @Override
-  public void updateTopology(Zone zone, Area area, boolean erase, Zone.TopologyType topologyType) {
+  public void replaceWalls(Zone zone, WallTopology walls) {
+    zone.replaceWalls(walls);
     var msg =
-        UpdateTopologyMsg.newBuilder()
+        SetWallTopologyMsg.newBuilder()
+            .setZoneGuid(zone.getId().toString())
+            .setTopology(walls.toDto());
+    makeServerCall(Message.newBuilder().setSetWallTopologyMsg(msg).build());
+  }
+
+  @Override
+  public void updateMaskTopology(
+      Zone zone, Area area, boolean erase, Zone.TopologyType topologyType) {
+    var msg =
+        UpdateMaskTopologyMsg.newBuilder()
             .setZoneGuid(zone.getId().toString())
             .setArea(Mapper.map(area))
             .setErase(erase)
             .setType(TopologyTypeDto.valueOf(topologyType.name()));
 
     // Update locally as well.
-    zone.updateTopology(area, erase, topologyType);
-    makeServerCall(Message.newBuilder().setUpdateTopologyMsg(msg).build());
+    zone.updateMaskTopology(area, erase, topologyType);
+    makeServerCall(Message.newBuilder().setUpdateMaskTopologyMsg(msg).build());
   }
 
   public void exposePCArea(GUID zoneGUID) {
@@ -620,7 +652,19 @@ public class ServerCommandClientImpl implements ServerCommand {
   }
 
   @Override
-  public void setTokenTopology(Token token, @Nullable Area area, Zone.TopologyType topologyType) {
+  public void toggleLightSourceOnToken(Token token, boolean toggleOn, LightSource lightSource) {
+    var update = toggleOn ? Token.Update.addLightSource : Token.Update.removeLightSource;
+    // We only need to send the ID of the light source.
+    updateTokenProperty(
+        token,
+        update,
+        TokenPropertyValueDto.newBuilder()
+            .setLightSourceId(lightSource.getId().toString())
+            .build());
+  }
+
+  public void setTokenMaskTopology(
+      Token token, @Nullable Area area, Zone.TopologyType topologyType) {
     if (area == null) {
       // Will be converted back to null on the other end.
       area = new Area();
@@ -628,7 +672,7 @@ public class ServerCommandClientImpl implements ServerCommand {
 
     updateTokenProperty(
         token,
-        Token.Update.setTopology,
+        Token.Update.setMaskTopology,
         TokenPropertyValueDto.newBuilder().setTopologyType(topologyType.name()).build(),
         TokenPropertyValueDto.newBuilder().setArea(Mapper.map(area)).build());
   }
@@ -685,14 +729,6 @@ public class ServerCommandClientImpl implements ServerCommand {
   public void updateTokenProperty(Token token, Token.Update update, String value) {
     updateTokenProperty(
         token, update, TokenPropertyValueDto.newBuilder().setStringValue(value).build());
-  }
-
-  @Override
-  public void updateTokenProperty(Token token, Token.Update update, LightSource value) {
-    updateTokenProperty(
-        token,
-        update,
-        TokenPropertyValueDto.newBuilder().setLightSourceId(value.getId().toString()).build());
   }
 
   @Override
@@ -803,15 +839,23 @@ public class ServerCommandClientImpl implements ServerCommand {
    * this way, only the most current version of the event is released.
    */
   private class TimedEventQueue extends Thread {
-
-    Message msg;
-    long delay;
-
-    final Object sleepSemaphore = new Object();
+    private final AtomicBoolean done = new AtomicBoolean(false);
+    private final long delay;
+    private Message msg;
 
     public TimedEventQueue(long millidelay) {
       setName("ServerCommandClientImpl.TimedEventQueue");
       delay = millidelay;
+    }
+
+    public void stopRunning() {
+      done.set(true);
+      try {
+        interrupt();
+        join();
+      } catch (InterruptedException e) {
+        log.error("Interrupted thread join. Thread may not be done running.", e);
+      }
     }
 
     public void enqueue(Message message) {
@@ -819,7 +863,6 @@ public class ServerCommandClientImpl implements ServerCommand {
     }
 
     public synchronized void flush() {
-
       if (msg != null) {
         makeServerCall(msg);
         msg = null;
@@ -828,16 +871,12 @@ public class ServerCommandClientImpl implements ServerCommand {
 
     @Override
     public void run() {
-
-      while (true) {
-
+      while (!done.get()) {
         flush();
-        synchronized (sleepSemaphore) {
-          try {
-            Thread.sleep(delay);
-          } catch (InterruptedException ie) {
-            // nothing to do
-          }
+        try {
+          Thread.sleep(delay);
+        } catch (InterruptedException ie) {
+          // nothing to do
         }
       }
     }

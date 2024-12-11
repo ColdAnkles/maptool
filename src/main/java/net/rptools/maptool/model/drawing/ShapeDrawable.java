@@ -51,7 +51,7 @@ public class ShapeDrawable extends AbstractDrawing {
     this.useAntiAliasing = other.useAntiAliasing;
     this.shape =
         switch (other.shape) {
-            // Covers Rectangle, Ellipse2D, etc.
+          // Covers Rectangle, Ellipse2D, etc.
           case RectangularShape r -> (Shape) r.clone();
           case Polygon p -> new Polygon(p.xpoints, p.ypoints, p.npoints);
           case Area a -> new Area(a);

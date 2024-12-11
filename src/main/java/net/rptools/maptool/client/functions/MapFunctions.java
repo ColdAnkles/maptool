@@ -406,10 +406,11 @@ public class MapFunctions extends AbstractFunction {
       switch (parameters.get(0).toString().toLowerCase()) {
         case "off" -> MapTool.serverCommand().setVisionType(currentZR.getId(), Zone.VisionType.OFF);
         case "day" -> MapTool.serverCommand().setVisionType(currentZR.getId(), Zone.VisionType.DAY);
-        case "night" -> MapTool.serverCommand()
-            .setVisionType(currentZR.getId(), Zone.VisionType.NIGHT);
-        default -> throw new ParserException(
-            I18N.getText("macro.function.general.argumentTypeInvalid", functionName));
+        case "night" ->
+            MapTool.serverCommand().setVisionType(currentZR.getId(), Zone.VisionType.NIGHT);
+        default ->
+            throw new ParserException(
+                I18N.getText("macro.function.general.argumentTypeInvalid", functionName));
       }
       return "";
     } else if ("getMapVision".equalsIgnoreCase(functionName)) {

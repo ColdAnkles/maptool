@@ -1898,6 +1898,46 @@ public class AppActions {
         }
       };
 
+  public static final Action TOGGLE_LANDING_MAP =
+      new ZoneAdminClientAction() {
+
+        {
+          init("action.toggleLandingMap");
+        }
+
+        @Override
+        public boolean isSelected() {
+          ZoneRenderer renderer = MapTool.getFrame().getCurrentZoneRenderer();
+          if (renderer == null) {
+            return false;
+          }
+
+          var landingMapId = MapTool.getCampaign().getLandingMapId();
+          if (landingMapId == null) {
+            return false;
+          }
+
+          return landingMapId.equals(renderer.getZone().getId());
+        }
+
+        @Override
+        protected void executeAction() {
+          ZoneRenderer renderer = MapTool.getFrame().getCurrentZoneRenderer();
+          if (renderer == null) {
+            return;
+          }
+
+          var landingMapId = MapTool.getCampaign().getLandingMapId();
+
+          var newLandingMapId = renderer.getZone().getId();
+          if (newLandingMapId.equals(landingMapId)) {
+            // Already set. Unset it instead.
+            newLandingMapId = null;
+          }
+          MapTool.serverCommand().setLandingMap(newLandingMapId);
+        }
+      };
+
   public static final Action TOGGLE_CURRENT_ZONE_VISIBILITY =
       new ZoneAdminClientAction() {
 
@@ -1977,7 +2017,7 @@ public class AppActions {
 
           Campaign campaign = CampaignFactory.createBasicCampaign();
           AppState.setCampaignFile(null);
-          MapTool.setCampaign(campaign);
+          MapTool.setCampaign(campaign, null);
           MapTool.serverCommand().setCampaign(campaign);
 
           ImageManager.flush();
@@ -2338,7 +2378,7 @@ public class AppActions {
           // Install a temporary gimped campaign until we get the one from the
           // server
           final Campaign oldCampaign = MapTool.getCampaign();
-          MapTool.setCampaign(new Campaign());
+          MapTool.setCampaign(new Campaign(), null);
 
           // connecting
           MapTool.getFrame()

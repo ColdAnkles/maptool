@@ -107,9 +107,7 @@ import net.rptools.maptool.server.ServerCommand;
 import net.rptools.maptool.server.ServerConfig;
 import net.rptools.maptool.server.ServerPolicy;
 import net.rptools.maptool.transfer.AssetTransferManager;
-import net.rptools.maptool.util.MessageUtil;
-import net.rptools.maptool.util.StringUtil;
-import net.rptools.maptool.util.UserJvmOptions;
+import net.rptools.maptool.util.*;
 import net.rptools.parser.ParserException;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -482,11 +480,15 @@ public class MapTool {
    * be called from any uncontrolled macros as there are both security and denial-of-service attacks
    * possible.
    *
+   * <p>This should not be called from any uncontrolled macros as there are both security and
+   * denial-of-service attacks possible.
+   *
+   * <p>This must be called on the AWT thread.
+   *
    * @param url the URL to pass to the browser.
    */
   public static void showDocument(String url) {
-    if (Desktop.isDesktopSupported()) {
-      String lowerCaseUrl = url.toLowerCase();
+    if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
       String urlToBrowse = url;
       Desktop desktop = Desktop.getDesktop();
       URI uri = null;
@@ -494,8 +496,8 @@ public class MapTool {
         uri = new URI(urlToBrowse);
         if (uri.getScheme() == null) {
           urlToBrowse = "https://" + urlToBrowse;
+          uri = new URI(urlToBrowse);
         }
-        uri = new URI(urlToBrowse);
         desktop.browse(uri);
       } catch (Exception e) {
         MapTool.showError(I18N.getText("msg.error.browser.cannotStart", uri), e);
@@ -666,16 +668,13 @@ public class MapTool {
 
     // Make sure the user sees something right away so that they aren't staring at a black screen.
     // Technically this call does too much, but since it is a blank campaign it's okay.
-    setCampaign(client.getCampaign());
+    setCampaign(client.getCampaign(), null);
 
     try {
       playerZoneListener = new PlayerZoneListener();
       zoneLoadedListener = new ZoneLoadedListener();
 
       Campaign cmpgn = CampaignFactory.createBasicCampaign();
-      // Set the Topology drawing mode to the last mode used for convenience
-      // Should only be one zone, but let's cover our bases.
-      cmpgn.getZones().forEach(zone -> zone.setTopologyTypes(AppStatePersisted.getTopologyTypes()));
 
       // Stop the pre-init client/server.
       disconnect();
@@ -888,33 +887,60 @@ public class MapTool {
     return parser;
   }
 
-  public static void setCampaign(Campaign campaign) {
-    setCampaign(campaign, null);
-  }
-
-  public static void setCampaign(Campaign campaign, GUID defaultRendererId) {
+  public static void setCampaign(Campaign campaign, @Nullable GUID defaultZoneId) {
     campaign = Objects.requireNonNullElseGet(campaign, Campaign::new);
 
     // Load up the new
     client.setCampaign(campaign);
-    ZoneRenderer currRenderer = null;
 
     clientFrame.clearZoneRendererList();
     clientFrame.getInitiativePanel().setZone(null);
     clientFrame.clearTokenTree();
 
+    // Find the map to place the player on first. If `defaultZoneId` was provided and is a
+    // visible map, use it. Otherwise fall back to the campaign's configured landing map. If that is
+    // not set or not visible, find the first visible map if there is one.
+    var defaultZone = defaultZoneId == null ? null : campaign.getZone(defaultZoneId);
+    if (defaultZone != null && !defaultZone.isVisible() && !getPlayer().isGM()) {
+      // Disallow maps not visible to the player.
+      defaultZone = null;
+    }
+    if (defaultZone == null) {
+      var landingMapId = campaign.getLandingMapId();
+      if (landingMapId != null) {
+        defaultZone = campaign.getZone(landingMapId);
+      }
+    }
+    if (defaultZone != null && !defaultZone.isVisible() && !getPlayer().isGM()) {
+      // Disallow maps not visible to the player.
+      defaultZone = null;
+    }
+    if (defaultZone == null) {
+      // Just use the first map that is acceptable.
+      for (Zone zone : campaign.getZones()) {
+        if (!zone.isVisible() && !getPlayer().isGM()) {
+          // Disallow maps not visible to the player.
+          continue;
+        }
+
+        defaultZone = zone;
+        break;
+      }
+    }
+
     // Install new campaign
+    ZoneRenderer currRenderer = null;
     for (Zone zone : campaign.getZones()) {
       ZoneRenderer renderer = ZoneRendererFactory.newRenderer(zone);
       clientFrame.addZoneRenderer(renderer);
-      if ((currRenderer == null || zone.getId().equals(defaultRendererId))
-          && (getPlayer().isGM() || zone.isVisible())) {
+      if (defaultZone != null && defaultZone.getId().equals(zone.getId())) {
         currRenderer = renderer;
       }
       new MapToolEventBus().getMainEventBus().post(new ZoneAdded(zone));
       // Now we have fire off adding the tokens in the zone
       new MapToolEventBus().getMainEventBus().post(new TokensAdded(zone, zone.getAllTokens()));
     }
+
     clientFrame.setCurrentZoneRenderer(currRenderer);
     clientFrame.getInitiativePanel().setOwnerPermissions(campaign.isInitiativeOwnerPermissions());
     clientFrame.getInitiativePanel().setMovementLock(campaign.isInitiativeMovementLock());

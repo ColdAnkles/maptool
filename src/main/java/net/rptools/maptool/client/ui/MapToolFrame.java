@@ -62,7 +62,6 @@ import net.rptools.maptool.client.swing.ProgressStatusBar;
 import net.rptools.maptool.client.swing.SpacerStatusBar;
 import net.rptools.maptool.client.swing.StatusPanel;
 import net.rptools.maptool.client.swing.SwingUtil;
-import net.rptools.maptool.client.swing.TopologyModeSelectionPanel;
 import net.rptools.maptool.client.swing.ZoomStatusBar;
 import net.rptools.maptool.client.swing.colorpicker.ColorPicker;
 import net.rptools.maptool.client.swing.preference.WindowPreferences;
@@ -1625,8 +1624,6 @@ public class MapToolFrame extends DefaultDockableHolder implements WindowListene
       eventBus.post(new ZoneActivated(renderer.getZone()));
 
       renderer.requestFocusInWindow();
-      // Updates the VBL/MBL button. Fixes #1642.
-      TopologyModeSelectionPanel.getInstance().setMode(renderer.getZone().getTopologyTypes());
     }
     AppActions.updateActions();
     repaint();

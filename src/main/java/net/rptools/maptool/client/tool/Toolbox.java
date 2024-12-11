@@ -17,7 +17,9 @@ package net.rptools.maptool.client.tool;
 import java.awt.EventQueue;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.swing.ButtonGroup;
 import net.rptools.maptool.client.MapTool;
@@ -28,13 +30,21 @@ import net.rptools.maptool.language.I18N;
 /** */
 public class Toolbox {
   private ZoneRenderer currentRenderer;
+
+  /** The selected tool, if any. Will be one of {@link #tools} or {@code null}. */
   private Tool currentTool;
+
+  /** Contains all tools in the toolbox regardless of how they were registered. */
+  private final List<Tool> tools = new ArrayList<>();
+
+  /** Remembers which tool was registered for which class. Values are members of {@link #tools}. */
   private final Map<Class<? extends Tool>, Tool> toolMap =
       new HashMap<Class<? extends Tool>, Tool>();
+
   private final ButtonGroup buttonGroup = new ButtonGroup();
 
   public void updateTools() {
-    for (Tool tool : toolMap.values()) {
+    for (Tool tool : tools) {
       tool.setEnabled(tool.isAvailable());
       tool.updateButtonState();
     }
@@ -82,6 +92,7 @@ public class Toolbox {
    * @param tool The tool to add.
    */
   public void addTool(Tool tool) {
+    tools.add(tool);
     if (tool.hasGroup()) {
       buttonGroup.add(tool);
     }

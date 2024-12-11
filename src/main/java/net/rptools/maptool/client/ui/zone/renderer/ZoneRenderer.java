@@ -377,6 +377,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
     if (set == null) {
       return;
     }
+    set.cancel();
     repaintDebouncer.dispatch();
   }
 
@@ -387,16 +388,13 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
    */
   public void commitMoveSelectionSet(GUID keyTokenId) {
     // TODO: Quick hack to handle updating server state
-    SelectionSet set = selectionSetMap.get(keyTokenId);
-
+    SelectionSet set = selectionSetMap.remove(keyTokenId);
     if (set == null) {
       return;
     }
-
     // Let the last thread finish rendering the path if A* Pathfinding is on
     set.renderFinalPath();
 
-    removeMoveSelectionSet(keyTokenId);
     MapTool.serverCommand().stopTokenMove(getZone().getId(), keyTokenId);
     Token keyToken = new Token(zone.getToken(keyTokenId), true);
 
@@ -423,7 +421,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
 
             moveTimer.start("setup");
 
-            boolean topologyTokenMoved = false; // If any token has topology we need to reset FoW
+            var changedMaskTopologyTypes = EnumSet.noneOf(Zone.TopologyType.class);
 
             Path<? extends AbstractPoint> path =
                 set.getWalker() != null ? set.getWalker().getPath() : set.getGridlessPath();
@@ -463,9 +461,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
                 filteredTokens.add(tokenGUID);
               }
 
-              if (token.hasAnyTopology()) {
-                topologyTokenMoved = true;
-              }
+              changedMaskTopologyTypes.addAll(token.getMaskTopologyTypes());
             }
             moveTimer.stop("eachtoken");
 
@@ -504,8 +500,8 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
             MapTool.getFrame().updateTokenTree();
             moveTimer.stop("updateTokenTree");
 
-            if (topologyTokenMoved) {
-              zone.tokenTopologyChanged();
+            if (!changedMaskTopologyTypes.isEmpty()) {
+              zone.tokenMaskTopologyChanged(changedMaskTopologyTypes);
             }
           });
     } else {
@@ -935,10 +931,6 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
 
     // Calculations
     timer.start("calcs-1");
-    AffineTransform af = new AffineTransform();
-    af.translate(zoneScale.getOffsetX(), zoneScale.getOffsetY());
-    af.scale(getScale(), getScale());
-
     if (visibleScreenArea == null) {
       timer.start("ZoneRenderer-getVisibleArea");
       Area a = zoneView.getVisibleArea(view);
@@ -946,6 +938,9 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
 
       timer.start("createTransformedArea");
       if (!a.isEmpty()) {
+        AffineTransform af = new AffineTransform();
+        af.translate(zoneScale.getOffsetX(), zoneScale.getOffsetY());
+        af.scale(getScale(), getScale());
         visibleScreenArea = a.createTransformedArea(af);
       }
       timer.stop("createTransformedArea");
@@ -3504,16 +3499,27 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
     repaintDebouncer.dispatch();
   }
 
-  @Subscribe
-  private void onTopologyChanged(TopologyChanged event) {
-    if (event.zone() != this.zone) {
-      return;
-    }
-
+  private void onTopologyChanged() {
     flushFog();
     flushLight();
     MapTool.getFrame().updateTokenTree(); // for any event
     repaintDebouncer.dispatch();
+  }
+
+  @Subscribe
+  private void onTopologyChanged(WallTopologyChanged event) {
+    if (event.zone() != this.zone) {
+      return;
+    }
+    onTopologyChanged();
+  }
+
+  @Subscribe
+  private void onTopologyChanged(MaskTopologyChanged event) {
+    if (event.zone() != this.zone) {
+      return;
+    }
+    onTopologyChanged();
   }
 
   private void markDrawableLayerDirty(Layer layer) {

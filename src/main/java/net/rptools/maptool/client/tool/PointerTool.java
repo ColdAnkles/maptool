@@ -495,7 +495,7 @@ public class PointerTool extends DefaultTool {
     // WAYPOINT
     if (SwingUtilities.isRightMouseButton(e) && tokenDragOp != null) {
       tokenDragOp.setWaypoint();
-      setDraggingMap(false); // We no longer drag the map. Fixes bug #616
+      cancelMapDrag(); // We no longer drag the map. Fixes bug #616
       return;
     }
 

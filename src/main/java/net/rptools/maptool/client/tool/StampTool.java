@@ -1324,7 +1324,7 @@ public class StampTool extends DefaultTool implements ZoneOverlay {
     public void dragTo(int mouseX, int mouseY, boolean lockAspectRatio, boolean snapSizeToGrid) {
       var currentZp = new ScreenPoint(mouseX, mouseY).convertToZone(renderer);
       if (snapSizeToGrid) { // snap size to grid
-        currentZp = getNearestVertex(currentZp);
+        currentZp = renderer.getZone().getGrid().getNearestVertex(currentZp);
       } else {
         // Keep the cursor at the same conceptual position in the drag handle.
         currentZp.x += dragOffsetX;
@@ -1361,10 +1361,6 @@ public class StampTool extends DefaultTool implements ZoneOverlay {
       tokenBeingResized.setScaleY(updatedHeight / (double) tokenImage.getHeight());
 
       renderer.repaint();
-    }
-
-    private ZonePoint getNearestVertex(ZonePoint point) {
-      return renderer.getZone().getNearestVertex(point);
     }
   }
 }

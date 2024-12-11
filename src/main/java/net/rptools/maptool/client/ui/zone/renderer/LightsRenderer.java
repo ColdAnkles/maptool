@@ -82,8 +82,8 @@ public class LightsRenderer {
 
       final var overlayBlending =
           switch (zone.getLightingStyle()) {
-            case OVERTOP -> AlphaComposite.SrcOver.derive(
-                AppPreferences.lightOverlayOpacity.get() / 255.f);
+            case OVERTOP ->
+                AlphaComposite.SrcOver.derive(AppPreferences.lightOverlayOpacity.get() / 255.f);
             case ENVIRONMENTAL -> LightingComposite.OverlaidLights;
           };
       final var overlayFillColor =

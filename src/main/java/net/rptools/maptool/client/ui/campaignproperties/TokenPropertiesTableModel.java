@@ -117,8 +117,8 @@ public class TokenPropertiesTableModel extends AbstractTableModel {
     var properties = tokenTypeMap.get(tokenType);
     var tokenProperty = properties.get(rowIndex);
     return switch (columnIndex) {
-      case 5, 6 -> tokenProperty
-          .isShowOnStatSheet(); // GM, Owner only editable if show on stat sheet is set
+      case 5, 6 ->
+          tokenProperty.isShowOnStatSheet(); // GM, Owner only editable if show on stat sheet is set
       default -> true;
     };
   }

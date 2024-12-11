@@ -770,10 +770,8 @@ public class TokenPropertiesManagementPanel extends AbeillePanel<CampaignPropert
     for (int i = 0; i < propertyTable.getColumnCount(); i++) {
 
       switch (i) { // set column shading
-        case 0, 2, 4, 6 -> propertyTable
-            .getColumnModel()
-            .getColumn(i)
-            .setHeaderRenderer(headerRenderer);
+        case 0, 2, 4, 6 ->
+            propertyTable.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer);
         case 1, 3 -> {
           propertyTable.getColumnModel().getColumn(i).setCellRenderer(cellRenderer);
           propertyTable.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer2);

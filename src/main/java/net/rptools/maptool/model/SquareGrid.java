@@ -287,6 +287,20 @@ public class SquareGrid extends Grid {
   }
 
   @Override
+  public Point2D snapFine(ZonePoint point) {
+    double offsetX = getOffsetX();
+    double offsetY = getOffsetY();
+
+    double stepX = getCellWidth() / 2.;
+    double stepY = getCellHeight() / 2.;
+
+    double gridx = Math.round((point.x - offsetX) / stepX);
+    double gridy = Math.round((point.y - offsetY) / stepY);
+
+    return new Point2D.Double(gridx * stepX + offsetX, gridy * stepY + offsetY);
+  }
+
+  @Override
   public ZoneWalker createZoneWalker() {
     WalkerMetric metric =
         MapTool.isPersonalServer()

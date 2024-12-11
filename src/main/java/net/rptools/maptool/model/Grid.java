@@ -256,12 +256,27 @@ public abstract class Grid implements Cloneable {
   public abstract ZonePoint convert(CellPoint cp);
 
   public ZonePoint getNearestVertex(ZonePoint point) {
-    int gridx = (int) Math.round((point.x - getOffsetX()) / getCellWidth());
-    int gridy = (int) Math.round((point.y - getOffsetY()) / getCellHeight());
+    double gridx = Math.round((point.x - getOffsetX()) / getCellWidth());
+    double gridy = Math.round((point.y - getOffsetY()) / getCellHeight());
 
     return new ZonePoint(
         (int) (gridx * getCellWidth() + getOffsetX()),
         (int) (gridy * getCellHeight() + getOffsetY()));
+  }
+
+  /**
+   * Like {@link #getNearestVertex(ZonePoint)}, but can snap by sub-cell increments.
+   *
+   * <p>It is up to the implementation what a useful definition of "fine" is. By default, it is the
+   * same as {@link #getNearestVertex(ZonePoint)}. For square grids it is the same as snapping to a
+   * half-grid.
+   *
+   * @param point The point to snap.
+   * @return The snapped point.
+   */
+  public Point2D snapFine(ZonePoint point) {
+    var vertex = getNearestVertex(point);
+    return new Point2D.Double(vertex.x, vertex.y);
   }
 
   public abstract GridCapabilities getCapabilities();

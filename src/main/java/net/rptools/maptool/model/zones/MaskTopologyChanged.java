@@ -16,4 +16,4 @@ package net.rptools.maptool.model.zones;
 
 import net.rptools.maptool.model.Zone;
 
-public record TopologyChanged(Zone zone) {}
+public record MaskTopologyChanged(Zone zone) {}

@@ -273,6 +273,10 @@ public class MapPropertiesDialog extends JDialog {
     return formPanel.getComboBox("lightingStyle");
   }
 
+  public JCheckBox getIsLandingMapCheckBox() {
+    return formPanel.getCheckBox("isLandingMap");
+  }
+
   public JComboBox getAStarRoundingOptionsComboBox() {
     return formPanel.getComboBox("aStarRoundingOptionsComboBox");
   }
@@ -283,6 +287,8 @@ public class MapPropertiesDialog extends JDialog {
   }
 
   private void copyZoneToUI() {
+    var campaign = MapTool.getClient().getCampaign();
+
     getNameTextField().setText(zone.getName());
     getPlayerAliasTextField().setText(zone.getPlayerAlias());
     // Localizes units per cell, using the proper separator. Fixes #507.
@@ -297,6 +303,7 @@ public class MapPropertiesDialog extends JDialog {
     getVisionTypeCombo().setSelectedItem(zone.getVisionType());
     getLightingStyleCombo().setSelectedItem(zone.getLightingStyle());
     getAStarRoundingOptionsComboBox().setSelectedItem(zone.getAStarRounding());
+    getIsLandingMapCheckBox().setSelected(zone.getId().equals(campaign.getLandingMapId()));
 
     gridOffsetX = zone.getGrid().getOffsetX();
     gridOffsetY = zone.getGrid().getOffsetY();
@@ -324,6 +331,15 @@ public class MapPropertiesDialog extends JDialog {
     zone.setFogPaint(fogPaint);
     zone.setBackgroundPaint(backgroundPaint);
     zone.setMapAsset(mapAsset != null ? mapAsset.getMD5Key() : null);
+
+    var campaign = MapTool.getClient().getCampaign();
+    if (getIsLandingMapCheckBox().isSelected()) {
+      campaign.setLandingMapId(zone.getId());
+    } else if (zone.getId().equals(campaign.getLandingMapId())) {
+      // This zone was the landing map but got toggled off.
+      campaign.setLandingMapId(null);
+    }
+
     // TODO: Handle grid type changes
   }
 

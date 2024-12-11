@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nullable;
 import javax.swing.SwingUtilities;
 import net.rptools.clientserver.ConnectionFactory;
@@ -536,7 +537,7 @@ public class MapToolServer {
   ////
   // CLASSES
   private class AssetProducerThread extends Thread {
-    private boolean stop = false;
+    private final AtomicBoolean stop = new AtomicBoolean(false);
 
     public AssetProducerThread() {
       setName("AssetProducerThread");
@@ -544,7 +545,7 @@ public class MapToolServer {
 
     @Override
     public void run() {
-      while (!stop) {
+      while (!stop.get()) {
         Entry<String, AssetTransferManager> entryForException = null;
         try {
           boolean lookForMore = false;
@@ -575,7 +576,7 @@ public class MapToolServer {
     }
 
     public void shutdown() {
-      stop = true;
+      stop.set(true);
     }
   }
 }

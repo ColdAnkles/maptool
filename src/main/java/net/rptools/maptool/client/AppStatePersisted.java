@@ -17,10 +17,12 @@ package net.rptools.maptool.client;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.prefs.Preferences;
+import java.util.stream.Collectors;
 import net.rptools.maptool.model.Zone;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,6 +66,9 @@ public class AppStatePersisted {
 
   /** Represents the key used to save the paint textures to the preferences. */
   private static final String KEY_SAVED_PAINT_TEXTURES = "savedTextures";
+
+  /** Will be null until read from preferences. */
+  private static EnumSet<Zone.TopologyType> topologyTypes = null;
 
   public static void clearAssetRoots() {
     prefs.put(KEY_ASSET_ROOTS, "");
@@ -167,38 +172,57 @@ public class AppStatePersisted {
     return mruCampaigns;
   }
 
-  public static Zone.TopologyTypeSet getTopologyTypes() {
+  private static EnumSet<Zone.TopologyType> readTopologyTypes() {
     try {
       String typeNames = prefs.get(KEY_TOPOLOGY_TYPES, "");
       if ("".equals(typeNames)) {
         // Fallback to the key used prior to the introduction of various VBL types.
         String oldDrawingMode = prefs.get(KEY_OLD_TOPOLOGY_DRAWING_MODE, DEFAULT_TOPOLOGY_TYPE);
         return switch (oldDrawingMode) {
-          case "VBL" -> new Zone.TopologyTypeSet(Zone.TopologyType.WALL_VBL);
-          case "MBL" -> new Zone.TopologyTypeSet(Zone.TopologyType.MBL);
-          case "COMBINED" -> new Zone.TopologyTypeSet(
-              Zone.TopologyType.WALL_VBL, Zone.TopologyType.MBL);
-          default -> new Zone.TopologyTypeSet(Zone.TopologyType.WALL_VBL);
+          case "VBL" -> EnumSet.of(Zone.TopologyType.WALL_VBL);
+          case "MBL" -> EnumSet.of(Zone.TopologyType.MBL);
+          case "COMBINED" -> EnumSet.of(Zone.TopologyType.WALL_VBL, Zone.TopologyType.MBL);
+          default -> EnumSet.of(Zone.TopologyType.WALL_VBL);
         };
       } else {
-        return Zone.TopologyTypeSet.valueOf(typeNames);
+        var result = EnumSet.noneOf(Zone.TopologyType.class);
+        for (var topologyType : Zone.TopologyType.values()) {
+          if (typeNames.contains(topologyType.name())) {
+            result.add(topologyType);
+          }
+        }
+        return result;
       }
     } catch (Exception exc) {
-      return new Zone.TopologyTypeSet(Zone.TopologyType.WALL_VBL);
+      return EnumSet.of(Zone.TopologyType.WALL_VBL);
     }
+  }
+
+  private static void writeTopologyTypes(Set<Zone.TopologyType> types) {
+    String joined = types.stream().map(Enum::name).collect(Collectors.joining(",", "[", "]"));
+    prefs.put(KEY_TOPOLOGY_TYPES, joined);
+  }
+
+  public static Set<Zone.TopologyType> getTopologyTypes() {
+    if (topologyTypes == null) {
+      topologyTypes = readTopologyTypes();
+    }
+    return topologyTypes;
   }
 
   /**
    * Sets the selected topology modes.
    *
-   * @param types the topology types. A value of null resets to default.
+   * @param types the topology types.
    */
-  public static void setTopologyTypes(Zone.TopologyTypeSet types) {
-    if (types == null) {
-      prefs.remove(KEY_TOPOLOGY_TYPES);
-    } else {
-      prefs.put(KEY_TOPOLOGY_TYPES, types.toString());
+  public static void setTopologyTypes(Set<Zone.TopologyType> types) {
+    if (topologyTypes == null) {
+      topologyTypes = EnumSet.noneOf(Zone.TopologyType.class);
     }
+    topologyTypes.clear();
+    topologyTypes.addAll(types);
+
+    writeTopologyTypes(topologyTypes);
   }
 
   public static void setSavedPaintTextures(List<File> savedTextures) {
