@@ -225,7 +225,7 @@ public class ZoneView {
   public boolean isUsingVision() {
     return zone.getVisionType() != Zone.VisionType.OFF;
   }
-  
+
   private IlluminationModel getIlluminationModel(IlluminationKey illuminationKey) {
     final var illuminationModel =
         illuminationModels.computeIfAbsent(illuminationKey, key -> new IlluminationModel());

@@ -281,7 +281,7 @@ public class Token implements Cloneable {
   private Area mbl;
 
   // endregion
-  
+
   private Map<String, Boolean> mapVBLImmunity = new HashMap<>();
 
   private Set<String> tokenVBLImmunity = new HashSet<>();
