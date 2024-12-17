@@ -48,10 +48,7 @@ import net.rptools.maptool.client.swing.label.FlatImageLabelFactory;
 import net.rptools.maptool.client.tool.PointerTool;
 import net.rptools.maptool.client.tool.StampTool;
 import net.rptools.maptool.client.tool.Tool;
-import net.rptools.maptool.client.tool.drawing.FreehandExposeTool;
-import net.rptools.maptool.client.tool.drawing.OvalExposeTool;
-import net.rptools.maptool.client.tool.drawing.PolygonExposeTool;
-import net.rptools.maptool.client.tool.drawing.RectangleExposeTool;
+import net.rptools.maptool.client.tool.drawing.ExposeTool;
 import net.rptools.maptool.client.ui.Scale;
 import net.rptools.maptool.client.ui.theme.Borders;
 import net.rptools.maptool.client.ui.theme.Images;
@@ -185,7 +182,8 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
     this.fogRenderer = new FogRenderer(renderHelper, zone, zoneView);
     this.visionOverlayRenderer = new VisionOverlayRenderer(renderHelper, zone, zoneView);
     this.debugRenderer = new DebugRenderer(renderHelper);
-    repaintDebouncer = new DebounceExecutor(1000 / AppPreferences.getFrameRateCap(), this::repaint);
+    repaintDebouncer =
+        new DebounceExecutor(1000 / AppPreferences.frameRateCap.get(), this::repaint);
 
     setFocusable(true);
     selectionModel = new SelectionModel(zone);
@@ -379,6 +377,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
     if (set == null) {
       return;
     }
+    set.cancel();
     repaintDebouncer.dispatch();
   }
 
@@ -389,16 +388,13 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
    */
   public void commitMoveSelectionSet(GUID keyTokenId) {
     // TODO: Quick hack to handle updating server state
-    SelectionSet set = selectionSetMap.get(keyTokenId);
-
+    SelectionSet set = selectionSetMap.remove(keyTokenId);
     if (set == null) {
       return;
     }
-
     // Let the last thread finish rendering the path if A* Pathfinding is on
     set.renderFinalPath();
 
-    removeMoveSelectionSet(keyTokenId);
     MapTool.serverCommand().stopTokenMove(getZone().getId(), keyTokenId);
     Token keyToken = new Token(zone.getToken(keyTokenId), true);
 
@@ -425,7 +421,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
 
             moveTimer.start("setup");
 
-            boolean topologyTokenMoved = false; // If any token has topology we need to reset FoW
+            var changedMaskTopologyTypes = EnumSet.noneOf(Zone.TopologyType.class);
 
             Path<? extends AbstractPoint> path =
                 set.getWalker() != null ? set.getWalker().getPath() : set.getGridlessPath();
@@ -465,9 +461,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
                 filteredTokens.add(tokenGUID);
               }
 
-              if (token.hasAnyTopology()) {
-                topologyTokenMoved = true;
-              }
+              changedMaskTopologyTypes.addAll(token.getMaskTopologyTypes());
             }
             moveTimer.stop("eachtoken");
 
@@ -506,8 +500,8 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
             MapTool.getFrame().updateTokenTree();
             moveTimer.stop("updateTokenTree");
 
-            if (topologyTokenMoved) {
-              zone.tokenTopologyChanged();
+            if (!changedMaskTopologyTypes.isEmpty()) {
+              zone.tokenMaskTopologyChanged(changedMaskTopologyTypes);
             }
           });
     } else {
@@ -653,10 +647,12 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
 
   public void addOverlay(ZoneOverlay overlay) {
     overlayList.add(overlay);
+    repaintDebouncer.dispatch();
   }
 
   public void removeOverlay(ZoneOverlay overlay) {
     overlayList.remove(overlay);
+    repaintDebouncer.dispatch();
   }
 
   public void moveViewBy(int dx, int dy) {
@@ -786,7 +782,8 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
             if (MapTool.getFrame().areFullScreenToolsShown()) {
               noteVPos += 40;
             }
-            if (!AppPreferences.getMapVisibilityWarning() && (!zone.isVisible() && pl.isGMView())) {
+            if (!AppPreferences.mapVisibilityWarning.get()
+                && (!zone.isVisible() && pl.isGMView())) {
               GraphicsUtil.drawBoxedString(
                   bufferG2d, I18N.getText("zone.map_not_visible"), getSize().width / 2, noteVPos);
               noteVPos += 20;
@@ -934,10 +931,6 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
 
     // Calculations
     timer.start("calcs-1");
-    AffineTransform af = new AffineTransform();
-    af.translate(zoneScale.getOffsetX(), zoneScale.getOffsetY());
-    af.scale(getScale(), getScale());
-
     if (visibleScreenArea == null) {
       timer.start("ZoneRenderer-getVisibleArea");
       Area a = zoneView.getVisibleArea(view);
@@ -945,6 +938,9 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
 
       timer.start("createTransformedArea");
       if (!a.isEmpty()) {
+        AffineTransform af = new AffineTransform();
+        af.translate(zoneScale.getOffsetX(), zoneScale.getOffsetY());
+        af.scale(getScale(), getScale());
         visibleScreenArea = a.createTransformedArea(af);
       }
       timer.stop("createTransformedArea");
@@ -1268,7 +1264,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
     }
     if (drawBackground) {
       Graphics2D bbg = backbuffer.createGraphics();
-      AppPreferences.getRenderQuality().setRenderingHints(bbg);
+      AppPreferences.renderQuality.get().setRenderingHints(bbg);
 
       // Background texture
       Paint paint =
@@ -1496,7 +1492,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
 
         if (token.hasFacing() && token.getShape() == Token.TokenShape.TOP_DOWN) {
           at.rotate(
-              Math.toRadians(-token.getFacing() - 90),
+              Math.toRadians(token.getFacingInDegrees()),
               scaledWidth / 2 - token.getAnchor().x * scale - offsetx,
               scaledHeight / 2
                   - token.getAnchor().y * scale
@@ -2097,7 +2093,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
       Area visibleArea = new Area(g.getClipBounds());
       visibleArea.intersect(visibleScreenArea);
       clippedG.setClip(new GeneralPath(visibleArea));
-      AppPreferences.getRenderQuality().setRenderingHints(clippedG);
+      AppPreferences.renderQuality.get().setRenderingHints(clippedG);
     }
     timer.stop("createClip");
 
@@ -2191,7 +2187,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
         double sy = scaledHeight / 2 + y - (token.getAnchor().y * scale);
         tokenBounds.transform(
             AffineTransform.getRotateInstance(
-                Math.toRadians(-token.getFacing() - 90), sx, sy)); // facing
+                Math.toRadians(token.getFacingInDegrees()), sx, sy)); // facing
         // defaults
         // to
         // down,
@@ -2300,7 +2296,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
         tokenG = (Graphics2D) clippedG.create();
       } else {
         tokenG = (Graphics2D) g.create();
-        AppPreferences.getRenderQuality().setRenderingHints(tokenG);
+        AppPreferences.renderQuality.get().setRenderingHints(tokenG);
       }
 
       // Previous path
@@ -2394,7 +2390,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
         // (token.getAnchor().y * scale) - offsety);
 
         at.rotate(
-            Math.toRadians(-token.getFacing() - 90),
+            Math.toRadians(token.getFacingInDegrees()),
             location.scaledWidth / 2 - (token.getAnchor().x * scale) - offsetx,
             location.scaledHeight / 2 - (token.getAnchor().y * scale) - offsety);
         // facing defaults to down, or -90 degrees
@@ -2502,9 +2498,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
         Token.TokenShape tokenType = token.getShape();
         switch (tokenType) {
           case FIGURE:
-            if (token.getHasImageTable()
-                && token.hasFacing()
-                && AppPreferences.getForceFacingArrow() == false) {
+            if (token.getHasImageTable() && !AppPreferences.forceFacingArrow.get()) {
               break;
             }
             Shape arrow = getFigureFacingArrow(token.getFacing(), footprintBounds.width / 2);
@@ -2528,7 +2522,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
             tokenG.translate(-fx, -fy);
             break;
           case TOP_DOWN:
-            if (AppPreferences.getForceFacingArrow() == false) {
+            if (!AppPreferences.forceFacingArrow.get()) {
               break;
             }
           case CIRCLE:
@@ -2598,22 +2592,40 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
       timer.stop("tokenlist-8");
 
       timer.start("tokenlist-9");
-      // Set up the graphics so that the overlay can just be painted.
+      /**
+       * Paint States and Bars Set up the graphics so that the overlay can just be painted. Use
+       * non-rotated token bounds to avoid odd size changes
+       */
+      Token tmpToken = new Token(token);
+      tmpToken.setFacing(270);
+      Rectangle tmpBounds = tmpToken.getBounds(this.zone);
+
+      // Unless it is isometric, make it square to avoid distortion
+      double maxDim = Math.max(tmpBounds.getWidth(), tmpBounds.getHeight());
+      // scale it to the view
+      maxDim *= this.getScale();
+      Rectangle bounds;
+      if (zone.getGrid().isIsometric()) {
+        bounds =
+            new Rectangle(
+                0,
+                0,
+                (int) (tmpBounds.getWidth() * this.getScale()),
+                (int) (tmpBounds.getHeight() * this.getScale()));
+      } else {
+        bounds = new Rectangle(0, 0, (int) maxDim, (int) maxDim);
+      }
+
+      // calculate the drawing region from the token centre.
       Graphics2D locg =
           (Graphics2D)
               tokenG.create(
-                  (int) tokenBounds.getBounds().getX(),
-                  (int) tokenBounds.getBounds().getY(),
-                  (int) tokenBounds.getBounds().getWidth(),
-                  (int) tokenBounds.getBounds().getHeight());
-      Rectangle bounds =
-          new Rectangle(
-              0,
-              0,
-              (int) tokenBounds.getBounds().getWidth(),
-              (int) tokenBounds.getBounds().getHeight());
+                  (int) Math.floor(tokenBounds.getBounds().getCenterX() - bounds.getWidth() / 2.0),
+                  (int) Math.floor(tokenBounds.getBounds().getCenterY() - bounds.getHeight() / 2.0),
+                  bounds.width,
+                  bounds.height);
 
-      // Check each of the set values
+      // Check each of the set values and draw
       for (String state : MapTool.getCampaign().getTokenStatesMap().keySet()) {
         Object stateValue = token.getState(state);
         AbstractTokenOverlay overlay = MapTool.getCampaign().getTokenStatesMap().get(state);
@@ -2703,12 +2715,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
         }
         if (useIF && token.getLayer().supportsVision() && zoneView.isUsingVision()) {
           Tool tool = MapTool.getFrame().getToolbox().getSelectedTool();
-          if (tool
-                  instanceof
-                  RectangleExposeTool // XXX Change to use marker interface such as ExposeTool?
-              || tool instanceof OvalExposeTool
-              || tool instanceof FreehandExposeTool
-              || tool instanceof PolygonExposeTool) {
+          if (tool instanceof ExposeTool<?>) {
             selectedBorder = RessourceManager.getBorder(Borders.FOW_TOOLS);
           }
         }
@@ -2719,7 +2726,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
           // Rotated
           clippedG.translate(sp.x, sp.y);
           clippedG.rotate(
-              Math.toRadians(-token.getFacing() - 90),
+              Math.toRadians(token.getFacingInDegrees()),
               width / 2 - (token.getAnchor().x * scale),
               height / 2 - (token.getAnchor().y * scale)); // facing defaults to down, or -90
           // degrees
@@ -2817,7 +2824,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
     // Stacks
     // TODO: find a cleaner way to indicate token layer
     if (!tokenList.isEmpty() && tokenList.get(0).getLayer().isTokenLayer()) {
-      boolean hideTSI = AppPreferences.getHideTokenStackIndicator();
+      boolean hideTSI = AppPreferences.hideTokenStackIndicator.get();
       if (tokenStackMap != null
           && !hideTSI) { // FIXME Needed to prevent NPE but how can it be null?
         for (Token token : tokenStackMap.keySet()) {
@@ -3208,7 +3215,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
 
       // Get the snap to grid value for the current prefs and abilities
       token.setSnapToGrid(
-          gridCaps.isSnapToGridSupported() && AppPreferences.getTokensStartSnapToGrid());
+          gridCaps.isSnapToGridSupported() && AppPreferences.tokensStartSnapToGrid.get());
       if (token.isSnapToGrid()) {
         zp = zone.getGrid().convert(zone.getGrid().convert(zp));
       }
@@ -3241,17 +3248,17 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
       switch (getActiveLayer()) {
         case TOKEN:
           // Players can't drop invisible tokens
-          token.setVisible(!isGM || AppPreferences.getNewTokensVisible());
-          if (AppPreferences.getTokensStartFreesize()) {
+          token.setVisible(!isGM || AppPreferences.newTokensVisible.get());
+          if (AppPreferences.tokensStartFreesize.get()) {
             token.setSnapToScale(false);
           }
           break;
         case BACKGROUND:
           token.setShape(Token.TokenShape.TOP_DOWN);
 
-          token.setSnapToScale(!AppPreferences.getBackgroundsStartFreesize());
-          token.setSnapToGrid(AppPreferences.getBackgroundsStartSnapToGrid());
-          token.setVisible(AppPreferences.getNewBackgroundsVisible());
+          token.setSnapToScale(!AppPreferences.backgroundsStartFreesize.get());
+          token.setSnapToGrid(AppPreferences.backgroundsStartSnapToGrid.get());
+          token.setVisible(AppPreferences.newBackgroundsVisible.get());
 
           // Center on drop point
           if (!token.isSnapToScale() && !token.isSnapToGrid()) {
@@ -3262,9 +3269,9 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
         case OBJECT:
           token.setShape(Token.TokenShape.TOP_DOWN);
 
-          token.setSnapToScale(!AppPreferences.getObjectsStartFreesize());
-          token.setSnapToGrid(AppPreferences.getObjectsStartSnapToGrid());
-          token.setVisible(AppPreferences.getNewObjectsVisible());
+          token.setSnapToScale(!AppPreferences.objectsStartFreesize.get());
+          token.setSnapToGrid(AppPreferences.objectsStartSnapToGrid.get());
+          token.setVisible(AppPreferences.newObjectsVisible.get());
 
           // Center on drop point
           if (!token.isSnapToScale() && !token.isSnapToGrid()) {
@@ -3289,7 +3296,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
         token.setName(MapToolUtil.nextTokenId(zone, token, tokenNameUsed != null));
 
         if (getActiveLayer() == Zone.Layer.TOKEN) {
-          if (AppPreferences.getShowDialogOnNewToken() || showDialog) {
+          if (AppPreferences.showDialogOnNewToken.get() || showDialog) {
             NewTokenDialog dialog = new NewTokenDialog(token, dropPoint.x, dropPoint.y);
             dialog.showDialog();
             if (!dialog.isSuccess()) {
@@ -3376,7 +3383,7 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
           MapTool.getCampaign().getLookupTableMap().get(token.getImageTableName());
       if (lookupTable != null) {
         try {
-          LookupEntry result = lookupTable.getLookup(token.getFacing().toString());
+          LookupEntry result = lookupTable.getLookup(Integer.toString(token.getFacing()));
           if (result != null) {
             image = ImageManager.getImage(result.getImageId(), this);
           }
@@ -3492,16 +3499,27 @@ public class ZoneRenderer extends JComponent implements DropTargetListener {
     repaintDebouncer.dispatch();
   }
 
-  @Subscribe
-  private void onTopologyChanged(TopologyChanged event) {
-    if (event.zone() != this.zone) {
-      return;
-    }
-
+  private void onTopologyChanged() {
     flushFog();
     flushLight();
     MapTool.getFrame().updateTokenTree(); // for any event
     repaintDebouncer.dispatch();
+  }
+
+  @Subscribe
+  private void onTopologyChanged(WallTopologyChanged event) {
+    if (event.zone() != this.zone) {
+      return;
+    }
+    onTopologyChanged();
+  }
+
+  @Subscribe
+  private void onTopologyChanged(MaskTopologyChanged event) {
+    if (event.zone() != this.zone) {
+      return;
+    }
+    onTopologyChanged();
   }
 
   private void markDrawableLayerDirty(Layer layer) {

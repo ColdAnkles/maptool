@@ -186,6 +186,7 @@ public class RessourceManager {
           put(Icons.TOOLBAR_TOKENSELECTION_NPC_ON, IMAGE_DIR + "tool/select-npc-blue.png");
           put(Icons.TOOLBAR_TOKENSELECTION_PC_OFF, IMAGE_DIR + "tool/select-pc-blue-off.png");
           put(Icons.TOOLBAR_TOKENSELECTION_PC_ON, IMAGE_DIR + "tool/select-pc-blue.png");
+          put(Icons.TOOLBAR_TOPOLOGY_WALL, IMAGE_DIR + "tool/wall-topology.png");
           put(Icons.TOOLBAR_TOPOLOGY_BOX, IMAGE_DIR + "tool/top-blue-rect.png");
           put(Icons.TOOLBAR_TOPOLOGY_BOX_HOLLOW, IMAGE_DIR + "tool/top-blue-hrect.png");
           put(Icons.TOOLBAR_TOPOLOGY_CROSS, IMAGE_DIR + "tool/top-blue-cross.png");
@@ -244,7 +245,6 @@ public class RessourceManager {
           put(Images.GRID_BORDER_HEX, IMAGE_DIR + "hexBorder.png");
           put(Images.GRID_BORDER_ISOMETRIC, IMAGE_DIR + "isoBorder.png");
           put(Images.GRID_BORDER_SQUARE, IMAGE_DIR + "whiteBorder.png");
-          put(Images.GRID_BORDER_SQUARE_RED, IMAGE_DIR + "grid-square-red.png");
           put(Images.HEROLABS_PORTRAIT, IMAGE_DIR + "powered_by_hero_lab_small.png");
           put(Images.HEROLABS_TOKEN, IMAGE_DIR + "hero-lab-token.png");
           put(Images.LIGHT_SOURCE, IMAGE_DIR + "lightbulb.png");
@@ -413,6 +413,7 @@ public class RessourceManager {
           put(Icons.TOOLBAR_TOKENSELECTION_NPC_ON, ROD_ICONS + "ribbon/NPC.svg");
           put(Icons.TOOLBAR_TOKENSELECTION_PC_OFF, ROD_ICONS + "ribbon/PC.svg");
           put(Icons.TOOLBAR_TOKENSELECTION_PC_ON, ROD_ICONS + "ribbon/PC.svg");
+          put(Icons.TOOLBAR_TOPOLOGY_WALL, ROD_ICONS + "ribbon/Wall Topology.svg");
           put(Icons.TOOLBAR_TOPOLOGY_BOX, ROD_ICONS + "ribbon/Draw Rectangle.svg");
           put(Icons.TOOLBAR_TOPOLOGY_BOX_HOLLOW, ROD_ICONS + "ribbon/Draw Hollow Rectangle.svg");
           put(Icons.TOOLBAR_TOPOLOGY_CROSS, ROD_ICONS + "ribbon/Draw Cross.svg");
@@ -502,7 +503,7 @@ public class RessourceManager {
 
   private static ImageIcon getIcon(Icons icon, int width, int height) {
     var iconPaths = classicIcons;
-    switch (AppPreferences.getIconTheme()) {
+    switch (AppPreferences.iconTheme.get()) {
       case ROD_TAKEHARA -> iconPaths = rodIcons;
     }
 

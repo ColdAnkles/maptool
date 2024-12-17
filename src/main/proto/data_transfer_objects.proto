@@ -45,6 +45,7 @@ message CampaignDto {
   repeated MacroButtonPropertiesDto macro_button_properties = 9;
   repeated ZoneDto zones = 10;
   repeated MacroButtonPropertiesDto gm_macro_button_properties = 11;
+  optional string landing_map_id = 12;
 }
 
 message LookupTableDto {
@@ -352,6 +353,7 @@ message TokenDto {
   bool is_flipped_iso = 47;
   google.protobuf.StringValue charsheet_image = 48;
   google.protobuf.StringValue portrait_image = 49;
+  repeated LightSourceDto unique_light_sources = 72;
   repeated AttachedLightSourceDto light_sources = 50;
   google.protobuf.StringValue sight_type = 51;
   bool has_sight = 52;
@@ -542,7 +544,6 @@ message ZoneDto {
   int32 token_vision_distance = 7;
   double units_per_cell = 8;
   AStarRoundingOptionsDto a_star_rounding = 9;
-  repeated TopologyTypeDto topologyTypes = 10;
   map<string, DrawnElementListDto> drawables = 11;
   repeated LabelDto labels = 15;
   repeated TokenDto tokens = 16;
@@ -556,6 +557,7 @@ message ZoneDto {
   AreaDto pit_vbl = 24;
   AreaDto cover_vbl = 39;
   AreaDto topology_terrain = 25;
+  WallTopologyDto walls = 12;
   DrawablePaintDto background_paint = 26;
   google.protobuf.StringValue map_asset = 27;
   IntPointDto boardPosition = 28;
@@ -647,7 +649,7 @@ enum TokenUpdateDto {
     setTerrainModifier = 38;
     setTerrainModifierOperation = 39;
     setTerrainModifiersIgnored = 40;
-    setTopology = 41;
+    setMaskTopology = 41;
     setImageAsset = 42;
     setPortraitImage = 43;
     setCharsheetImage = 44;
@@ -718,3 +720,21 @@ message TokenFootPrintDto {
   bool localize_name = 6;
   string localized_name = 7;
 }
+// region WallTopology graph
+
+message VertexDto {
+  string id = 1;
+  DoublePointDto position = 2;
+}
+
+message WallDto {
+  string from = 1;
+  string to = 2;
+}
+
+message WallTopologyDto {
+  repeated VertexDto vertices = 1;
+  repeated WallDto walls = 2;
+}
+
+// ednregion

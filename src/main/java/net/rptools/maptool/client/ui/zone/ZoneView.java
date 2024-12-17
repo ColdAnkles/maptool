@@ -31,14 +31,14 @@ import net.rptools.maptool.client.ui.zone.Illumination.LumensLevel;
 import net.rptools.maptool.client.ui.zone.IlluminationModel.ContributedLight;
 import net.rptools.maptool.client.ui.zone.IlluminationModel.LightInfo;
 import net.rptools.maptool.client.ui.zone.Illuminator.LitArea;
-import net.rptools.maptool.client.ui.zone.vbl.AreaTree;
 import net.rptools.maptool.events.MapToolEventBus;
 import net.rptools.maptool.model.*;
 import net.rptools.maptool.model.player.Player;
+import net.rptools.maptool.model.zones.MaskTopologyChanged;
 import net.rptools.maptool.model.zones.TokensAdded;
 import net.rptools.maptool.model.zones.TokensChanged;
 import net.rptools.maptool.model.zones.TokensRemoved;
-import net.rptools.maptool.model.zones.TopologyChanged;
+import net.rptools.maptool.model.zones.WallTopologyChanged;
 import net.rptools.maptool.model.zones.ZoneLightingChanged;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -78,7 +78,7 @@ public class ZoneView {
 
   private void addLightSourceToken(Token token, Set<Player.Role> roles) {
     for (AttachedLightSource als : token.getLightSources()) {
-      LightSource lightSource = als.resolve(MapTool.getCampaign());
+      LightSource lightSource = als.resolve(token, MapTool.getCampaign());
       if (lightSource == null) {
         continue;
       }
@@ -149,11 +149,6 @@ public class ZoneView {
 
   /** Holds the auras from lightSourceMap after they have been combined. */
   private final Map<PlayerView, List<DrawableLight>> drawableAuras = new HashMap<>();
-
-  private final Map<Zone.TopologyType, Area> topologyAreas = new EnumMap<>(Zone.TopologyType.class);
-
-  private final Map<Zone.TopologyType, AreaTree> topologyTrees =
-      new EnumMap<>(Zone.TopologyType.class);
 
   /**
    * Construct ZoneView from zone. Build lightSourceMap, and add ZoneView to Zone as listener.
@@ -231,61 +226,6 @@ public class ZoneView {
     return zone.getVisionType() != Zone.VisionType.OFF;
   }
 
-  /**
-   * Get the map and token topology of the requested type.
-   *
-   * <p>The topology is cached and should only regenerate when not yet present, which should happen
-   * on flush calls.
-   *
-   * @param topologyType The type of topology tree to get.
-   * @return the area of the topology.
-   */
-  public synchronized Area getTopology(Zone.TopologyType topologyType) {
-    var topology = topologyAreas.get(topologyType);
-
-    if (topology == null) {
-      log.debug("ZoneView topology area for {} is null, generating...", topologyType.name());
-
-      topology = new Area(zone.getTopology(topologyType));
-      List<Token> topologyTokens =
-          MapTool.getFrame().getCurrentZoneRenderer().getZone().getTokensWithTopology(topologyType);
-      for (Token topologyToken : topologyTokens) {
-        topology.add(topologyToken.getTransformedTopology(topologyType));
-      }
-
-      topologyAreas.put(topologyType, topology);
-    }
-
-    return topology;
-  }
-
-  /**
-   * Get the topology tree of the requested type.
-   *
-   * <p>The topology tree is cached and should only regenerate when the tree is not present, which
-   * should happen on flush calls.
-   *
-   * <p>This method is equivalent to building an AreaTree from the results of getTopology(), but the
-   * results are cached.
-   *
-   * @param topologyType The type of topology tree to get.
-   * @return the AreaTree (topology tree).
-   */
-  private synchronized AreaTree getTopologyTree(Zone.TopologyType topologyType) {
-    var topologyTree = topologyTrees.get(topologyType);
-
-    if (topologyTree == null) {
-      log.debug("ZoneView topology tree for {} is null, generating...", topologyType.name());
-
-      var topology = getTopology(topologyType);
-
-      topologyTree = new AreaTree(topology);
-      topologyTrees.put(topologyType, topologyTree);
-    }
-
-    return topologyTree;
-  }
-
   private IlluminationModel getIlluminationModel(IlluminationKey illuminationKey) {
     final var illuminationModel =
         illuminationModels.computeIfAbsent(illuminationKey, key -> new IlluminationModel());
@@ -316,7 +256,8 @@ public class ZoneView {
     final var result = new ArrayList<ContributedLight>();
 
     for (final var attachedLightSource : lightSourceToken.getLightSources()) {
-      LightSource lightSource = attachedLightSource.resolve(MapTool.getCampaign());
+      LightSource lightSource =
+          attachedLightSource.resolve(lightSourceToken, MapTool.getCampaign());
       if (lightSource == null) {
         continue;
       }
@@ -346,13 +287,7 @@ public class ZoneView {
 
     if (!lightSource.isIgnoresVBL()) {
       lightSourceVisibleArea =
-          FogUtil.calculateVisibility(
-              p,
-              lightSourceArea,
-              getTopologyTree(Zone.TopologyType.WALL_VBL),
-              getTopologyTree(Zone.TopologyType.HILL_VBL),
-              getTopologyTree(Zone.TopologyType.PIT_VBL),
-              getTopologyTree(Zone.TopologyType.COVER_VBL));
+          FogUtil.calculateVisibility(p, lightSourceArea, zone.prepareNodedTopologies());
     }
     if (lightSourceVisibleArea.isEmpty()) {
       // Nothing illuminated for this source.
@@ -591,14 +526,7 @@ public class ZoneView {
       Point p = FogUtil.calculateVisionCenter(token, zone);
       Area visibleArea = sight.getVisionShape(token, zone);
       visibleArea.transform(AffineTransform.getTranslateInstance(p.x, p.y));
-      tokenVisibleArea =
-          FogUtil.calculateVisibility(
-              p,
-              visibleArea,
-              getTopologyTree(Zone.TopologyType.WALL_VBL),
-              getTopologyTree(Zone.TopologyType.HILL_VBL),
-              getTopologyTree(Zone.TopologyType.PIT_VBL),
-              getTopologyTree(Zone.TopologyType.COVER_VBL));
+      tokenVisibleArea = FogUtil.calculateVisibility(p, visibleArea, zone.prepareNodedTopologies());
       tokenVisibleAreaCache.put(token.getId(), tokenVisibleArea);
     }
 
@@ -669,7 +597,7 @@ public class ZoneView {
                 Point p = FogUtil.calculateVisionCenter(token, zone);
 
                 for (AttachedLightSource als : token.getLightSources()) {
-                  LightSource lightSource = als.resolve(MapTool.getCampaign());
+                  LightSource lightSource = als.resolve(token, MapTool.getCampaign());
                   if (lightSource == null) {
                     continue;
                   }
@@ -685,12 +613,7 @@ public class ZoneView {
                   if (!lightSource.isIgnoresVBL()) {
                     visibleArea =
                         FogUtil.calculateVisibility(
-                            p,
-                            lightSourceArea,
-                            getTopologyTree(Zone.TopologyType.WALL_VBL),
-                            getTopologyTree(Zone.TopologyType.HILL_VBL),
-                            getTopologyTree(Zone.TopologyType.PIT_VBL),
-                            getTopologyTree(Zone.TopologyType.COVER_VBL));
+                            p, lightSourceArea, zone.prepareNodedTopologies());
                   }
 
                   // This needs to be cached somehow
@@ -762,10 +685,10 @@ public class ZoneView {
                         final var lumensStrength = Math.abs(laud.litArea().lumens());
                         final var lumensLevel =
                             switch (lightingStyle) {
-                              case ENVIRONMENTAL -> illumination.getObscuredLumensLevel(
-                                  lumensStrength);
-                              case OVERTOP -> illumination.getDisjointObscuredLumensLevel(
-                                  lumensStrength);
+                              case ENVIRONMENTAL ->
+                                  illumination.getObscuredLumensLevel(lumensStrength);
+                              case OVERTOP ->
+                                  illumination.getDisjointObscuredLumensLevel(lumensStrength);
                             };
                         // Should always be present based on construction, but just in case...
                         if (lumensLevel.isEmpty()) {
@@ -863,15 +786,24 @@ public class ZoneView {
     }
   }
 
+  private void onTopologyChanged() {
+    flush();
+  }
+
   @Subscribe
-  private void onTopologyChanged(TopologyChanged event) {
+  private void onTopologyChanged(WallTopologyChanged event) {
     if (event.zone() != this.zone) {
       return;
     }
+    onTopologyChanged();
+  }
 
-    flush();
-    topologyAreas.clear();
-    topologyTrees.clear();
+  @Subscribe
+  private void onTopologyChanged(MaskTopologyChanged event) {
+    if (event.zone() != this.zone) {
+      return;
+    }
+    onTopologyChanged();
   }
 
   @Subscribe
@@ -886,7 +818,7 @@ public class ZoneView {
   private boolean flushExistingTokens(List<Token> tokens) {
     boolean tokenChangedTopology = false;
     for (Token token : tokens) {
-      if (token.hasAnyTopology()) tokenChangedTopology = true;
+      if (token.hasAnyMaskTopology()) tokenChangedTopology = true;
       flush(token);
     }
     // Ug, stupid hack here, can't find a bug where if a NPC token is moved before lights are
@@ -922,10 +854,8 @@ public class ZoneView {
       flushLights();
     }
 
-    if (event.tokens().stream().anyMatch(Token::hasAnyTopology)) {
+    if (event.tokens().stream().anyMatch(Token::hasAnyMaskTopology)) {
       flush();
-      topologyAreas.clear();
-      topologyTrees.clear();
     }
   }
 
@@ -953,10 +883,8 @@ public class ZoneView {
       visibleAreaMap.clear();
     }
 
-    if (tokens.stream().anyMatch(Token::hasAnyTopology)) {
+    if (tokens.stream().anyMatch(Token::hasAnyMaskTopology)) {
       flush();
-      topologyAreas.clear();
-      topologyTrees.clear();
     }
   }
 

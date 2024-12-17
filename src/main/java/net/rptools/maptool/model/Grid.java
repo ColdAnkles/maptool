@@ -62,7 +62,7 @@ public abstract class Grid implements Cloneable {
 
   private static final Dimension NO_DIM = new Dimension();
   private static final DirectionCalculator calculator = new DirectionCalculator();
-  private static Map<Integer, Area> gridShapeCache = new ConcurrentHashMap<>();
+  private static final Map<Integer, Area> gridShapeCache = new ConcurrentHashMap<>();
 
   protected transient Map<KeyStroke, Action> movementKeys = null;
   private transient Zone zone;
@@ -72,7 +72,7 @@ public abstract class Grid implements Cloneable {
   private int size;
 
   public Grid() {
-    setSize(AppPreferences.getDefaultGridSize());
+    setSize(AppPreferences.defaultGridSize.get());
   }
 
   public Grid(Grid grid) {
@@ -109,21 +109,60 @@ public abstract class Grid implements Cloneable {
   }
 
   /**
-   * Set the facing options for tokens/objects on a grid. Each grid type can providing facings to
-   * the edges, the vertices, both, or neither.
+   * Get the next standard facing in the given direction.
    *
-   * <p>If both are false, tokens on that grid will not be able to rotate with the mouse and
-   * keyboard controls for setting facing.
-   *
-   * @param faceEdges - Tokens can face edges.
-   * @param faceVertices - Tokens can face vertices.
+   * @param facing The current facing.
+   * @param faceEdges Whether to snap facing to edges.
+   * @param faceVertices
+   * @param clockwise
+   * @return
    */
-  public void setFacings(boolean faceEdges, boolean faceVertices) {
-    // Handle it in the individual grid types
+  public final int nextFacing(
+      int facing, boolean faceEdges, boolean faceVertices, boolean clockwise) {
+    // Work in range (0, 360] as it is easier for implementations.
+    // Will convert back to (-180,180] at the end.
+    facing = Math.floorMod(facing - 1, 360) + 1;
+
+    int nextFacing = snapFacingInternal(facing, faceEdges, faceVertices, clockwise ? -1 : 1);
+
+    return normalizeFacing(nextFacing);
   }
 
-  public int[] getFacingAngles() {
-    return null;
+  public final int nearestFacing(int facing, boolean faceEdges, boolean faceVertices) {
+    // Work in range (0, 360] as it is easier for implementations.
+    // Will convert back to (-180,180] at the end.
+    facing = Math.floorMod(facing - 1, 360) + 1;
+
+    int nearestFacing = snapFacingInternal(facing, faceEdges, faceVertices, 0);
+
+    return normalizeFacing(nearestFacing);
+  }
+
+  /**
+   * Snaps a facing to the nearest edges or vertex, then optionally jumps to an adjacent one.
+   *
+   * @param facing The original facing. Must be set in the range 0 < facing <= 360.
+   * @param faceEdges If {@code true}, allow snapping the facing to the nearest edge.
+   * @param faceVertices If {@code true}, allow snapping the facing to the nearest vertex.
+   * @param addedSteps The number of edges or vertices to advance after snapping (depends on values
+   *     of {@code faceEdges} and {@code faceVertices}.
+   * @return The snapped facing. Can be any integer.
+   */
+  protected abstract int snapFacingInternal(
+      int facing, boolean faceEdges, boolean faceVertices, int addedSteps);
+
+  /**
+   * Return an equivalent facing in the range (-180, 180].
+   *
+   * @param facing
+   * @return
+   */
+  private int normalizeFacing(int facing) {
+    facing = Math.floorMod(facing, 360);
+    if (facing > 180) {
+      facing -= 360;
+    }
+    return facing;
   }
 
   /**
@@ -201,12 +240,27 @@ public abstract class Grid implements Cloneable {
   public abstract ZonePoint convert(CellPoint cp);
 
   public ZonePoint getNearestVertex(ZonePoint point) {
-    int gridx = (int) Math.round((point.x - getOffsetX()) / getCellWidth());
-    int gridy = (int) Math.round((point.y - getOffsetY()) / getCellHeight());
+    double gridx = Math.round((point.x - getOffsetX()) / getCellWidth());
+    double gridy = Math.round((point.y - getOffsetY()) / getCellHeight());
 
     return new ZonePoint(
         (int) (gridx * getCellWidth() + getOffsetX()),
         (int) (gridy * getCellHeight() + getOffsetY()));
+  }
+
+  /**
+   * Like {@link #getNearestVertex(ZonePoint)}, but can snap by sub-cell increments.
+   *
+   * <p>It is up to the implementation what a useful definition of "fine" is. By default, it is the
+   * same as {@link #getNearestVertex(ZonePoint)}. For square grids it is the same as snapping to a
+   * half-grid.
+   *
+   * @param point The point to snap.
+   * @return The snapped point.
+   */
+  public Point2D snapFine(ZonePoint point) {
+    var vertex = getNearestVertex(point);
+    return new Point2D.Double(vertex.x, vertex.y);
   }
 
   public abstract GridCapabilities getCapabilities();
@@ -332,12 +386,128 @@ public abstract class Grid implements Cloneable {
     fireGridChanged();
   }
 
+  // region Light shapes
+
+  /**
+   * Get the grid-relative angle of the token based on its facing.
+   *
+   * <p>This is used to rotate cones and beams according to the on-grid angle. The result is the
+   * number of clockwise degrees measured from the positive x-axis of the grid.
+   *
+   * <p>This method exists because {@link net.rptools.maptool.model.Token#getFacing()} is a measure
+   * of the on-screen angle of the token's facing, i.e., how many degrees from the positive x-axis
+   * of the screen. For most grids this is the same as measuring the number of degress from the
+   * positive x-axis of the grid, which is what is should be.
+   *
+   * <p>Things are different for isometric grids. Since they are rotated, the on-screen facing does
+   * not agree with the on-grid facing - there is a 45° offset. When building shapes, we need the
+   * on-grid facing, not the on-screen facing. This method allows isometric grids to override the
+   * default behaviour so that an on-grid facing is provided.
+   *
+   * @param token The token whose facing needs to be determined.
+   * @return The direction the token is facing, in clockwise degrees from the positive x-axis of the
+   *     grid.
+   */
+  protected int getTokenFacingAngleRelativeToGridAxis(Token token) {
+    return -token.getFacing();
+  }
+
+  /**
+   * Get the main area for a given light shape type.
+   *
+   * <p>This method expressly does not add in the footprint bit that cone lights are expected to
+   * have. This part cannot be freely transformed, so it is done separately in {@link
+   * #getFootprintShapedAreaForCone(java.awt.Rectangle)}.
+   *
+   * @param shape The shape. Can be any shape except {@link
+   *     net.rptools.maptool.model.ShapeType#GRID}.
+   * @param tokenFacingAngle The angle on-screen that the token is facing. Used for cones and beams
+   *     to provide the main axis of the shape.
+   * @param visionRange The range to which the token can see. Determines the size of the shape.
+   * @param width For beams, the width of the beam. Otherwise, ignored.
+   * @param arcAngle For cones, the internal angle of the point of the cone. Otherwise, ignored.
+   * @param offsetAngle For cones and beams, an offset to apply relative to the token facing.
+   *     Otherwise, ignored.
+   * @return The area of the light.
+   */
+  protected @Nonnull Area getShapedAreaWithoutFootprint(
+      ShapeType shape,
+      int tokenFacingAngle,
+      double visionRange,
+      double width,
+      double arcAngle,
+      int offsetAngle) {
+    Area visibleArea;
+    switch (shape) {
+      case CIRCLE -> {
+        visibleArea =
+            GraphicsUtil.createLineSegmentEllipse(
+                -visionRange, -visionRange, visionRange, visionRange, CIRCLE_SEGMENTS);
+      }
+      case SQUARE -> {
+        visibleArea =
+            new Area(
+                new Rectangle2D.Double(
+                    -visionRange, -visionRange, visionRange * 2, visionRange * 2));
+      }
+      case BEAM -> {
+        // Make at least 1 pixel on each side, so it's at least visible at 100% zoom.
+        var pixelWidth = Math.max(2, width * getSize() / zone.getUnitsPerCell());
+        Shape lineShape = new Rectangle2D.Double(0, -pixelWidth / 2, visionRange, pixelWidth);
+
+        visibleArea =
+            new Area(
+                AffineTransform.getRotateInstance(Math.toRadians(tokenFacingAngle - offsetAngle))
+                    .createTransformedShape(lineShape));
+      }
+      case CONE -> {
+        Arc2D cone =
+            new Arc2D.Double(
+                -visionRange,
+                -visionRange,
+                visionRange * 2,
+                visionRange * 2,
+                (offsetAngle - tokenFacingAngle) - arcAngle / 2.,
+                arcAngle,
+                Arc2D.PIE);
+
+        // Flatten the cone to remove 'curves'
+        GeneralPath path = new GeneralPath();
+        path.append(cone.getPathIterator(null, 1), false);
+        visibleArea = new Area(path);
+      }
+      case HEX -> {
+        visibleArea = createHex(visionRange);
+      }
+      case GRID -> {
+        log.error("Shape {} should not be handled here. Returning empty area.", shape);
+        visibleArea = new Area();
+      }
+      default -> {
+        log.error("Unhandled shape {}; treating as a circle", shape);
+        visibleArea =
+            GraphicsUtil.createLineSegmentEllipse(
+                -visionRange, -visionRange, visionRange * 2, visionRange * 2, CIRCLE_SEGMENTS);
+      }
+    }
+
+    return visibleArea;
+  }
+
+  protected @Nonnull Area getFootprintShapedAreaForCone(Rectangle footprint) {
+    var footprintPart = new Rectangle(footprint);
+    footprintPart.x = -footprintPart.width / 2;
+    footprintPart.y = -footprintPart.height / 2;
+    return new Area(footprintPart);
+  }
+
   /**
    * Called by SightType and Light class to return a vision area based upon a specified distance
    *
-   * @param shape CIRCLE, GRID, SQUARE, CONE or LINE
+   * @param shape The shape of the light. Can be any {@link net.rptools.maptool.model.ShapeType}
    * @param token Used to position the shape and to provide footprint
-   * @param range As specified in the vision or light definition
+   * @param range How far the shape should extends from the origin. If {@code 0}, the zone's vision
+   *     range is used.
    * @param arcAngle Only used by cone
    * @param offsetAngle Arc distance from facing, only used by cone
    * @param scaleWithToken used to increase the area based on token footprint
@@ -351,113 +521,47 @@ public abstract class Grid implements Cloneable {
       double arcAngle,
       int offsetAngle,
       boolean scaleWithToken) {
-    if (shape == null) {
-      shape = ShapeType.CIRCLE;
+    if (range == 0) {
+      range = zone.getTokenVisionDistance();
     }
-    int visionDistance = zone.getTokenVisionInPixels();
-    double visionRange = (range == 0) ? visionDistance : range * getSize() / zone.getUnitsPerCell();
+    double visionRange = range * getSize() / zone.getUnitsPerCell();
+
+    Rectangle footprint = token.getFootprint(this).getBounds(this);
 
     if (scaleWithToken) {
-      double footprintWidth = token.getFootprint(this).getBounds(this).getWidth() / 2;
+      double footprintWidth = footprint.getWidth() / 2;
 
       // Test for gridless maps
       var cellShape = getCellShape();
       if (cellShape == null) {
-        double tokenBoundsWidth = token.getBounds(getZone()).getWidth() / 2;
+        double tokenBoundsWidth = token.getBounds(zone).getWidth() / 2;
         visionRange += (footprintWidth > tokenBoundsWidth) ? tokenBoundsWidth : tokenBoundsWidth;
       } else {
         // For grids, this will be the same, but for Hex's we'll use the smaller side depending on
         // which Hex type you choose
-        double footprintHeight = token.getFootprint(this).getBounds(this).getHeight() / 2;
+        double footprintHeight = footprint.getHeight() / 2;
         visionRange += Math.min(footprintWidth, footprintHeight);
       }
     }
 
-    Area visibleArea = new Area();
-    switch (shape) {
-      case CIRCLE:
-        visibleArea =
-            GraphicsUtil.createLineSegmentEllipse(
-                -visionRange, -visionRange, visionRange, visionRange, CIRCLE_SEGMENTS);
-        break;
-      case GRID:
-        visibleArea = getGridArea(token, range, scaleWithToken, visionRange);
-        break;
-      case SQUARE:
-        visibleArea =
-            new Area(
-                new Rectangle2D.Double(
-                    -visionRange, -visionRange, visionRange * 2, visionRange * 2));
-        break;
-      case BEAM:
-        if (token.getFacing() == null) {
-          token.setFacing(0);
-        }
-        // Make at least 1 pixel on each side, so it's at least visible at 100% zoom.
-        var pixelWidth = Math.max(2, width * getSize() / zone.getUnitsPerCell());
-        Shape lineShape = new Rectangle2D.Double(0, -pixelWidth / 2, visionRange, pixelWidth);
-        Shape visibleShape = new GeneralPath(lineShape);
+    // Grid shape is unique in that it is deliberately "unnatural". So handle it separately.
+    if (shape == ShapeType.GRID) {
+      return getGridArea(token, range, scaleWithToken, visionRange);
+    }
 
-        visibleArea =
-            new Area(
-                AffineTransform.getRotateInstance(
-                        Math.toRadians(offsetAngle) - Math.toRadians(token.getFacing()))
-                    .createTransformedShape(visibleShape));
-        break;
-      case CONE:
-        if (token.getFacing() == null) {
-          token.setFacing(0);
-        }
-
-        Arc2D cone =
-            new Arc2D.Double(
-                -visionRange,
-                -visionRange,
-                visionRange * 2,
-                visionRange * 2,
-                360.0 - (arcAngle / 2.0) + (offsetAngle * 1.0),
-                arcAngle,
-                Arc2D.PIE);
-
-        // Flatten the cone to remove 'curves'
-        GeneralPath path = new GeneralPath();
-        path.append(cone.getPathIterator(null, 1), false);
-        Area tempvisibleArea = new Area(path);
-
-        // Rotate
-        tempvisibleArea =
-            tempvisibleArea.createTransformedArea(
-                AffineTransform.getRotateInstance(-Math.toRadians(token.getFacing())));
-
-        Rectangle footprint = token.getFootprint(this).getBounds(this);
-        footprint.x = -footprint.width / 2;
-        footprint.y = -footprint.height / 2;
-
-        visibleArea.add(new Area(footprint));
-        visibleArea.add(tempvisibleArea);
-        break;
-      case HEX:
-        footprint = token.getFootprint(this).getBounds(this);
-        double x = footprint.getCenterX();
-        double y = footprint.getCenterY();
-
-        double footprintWidth = token.getFootprint(this).getBounds(this).getWidth();
-        double footprintHeight = token.getFootprint(this).getBounds(this).getHeight();
-        double adjustment = Math.min(footprintWidth, footprintHeight);
-        x -= adjustment / 2;
-        y -= adjustment / 2;
-
-        visibleArea = createHex(x, y, visionRange, 0);
-        break;
-      default:
-        visibleArea =
-            GraphicsUtil.createLineSegmentEllipse(
-                -visionRange, -visionRange, visionRange * 2, visionRange * 2, CIRCLE_SEGMENTS);
-        break;
+    var facingAngle = getTokenFacingAngleRelativeToGridAxis(token);
+    var visibleArea =
+        getShapedAreaWithoutFootprint(
+            shape, facingAngle, visionRange, width, arcAngle, offsetAngle);
+    if (shape == ShapeType.CONE) {
+      // Cones are unique in that they add the token footprint to the shape.
+      visibleArea.add(getFootprintShapedAreaForCone(footprint));
     }
 
     return visibleArea;
   }
+
+  // endregion
 
   /**
    * Return the cell distance between two cells. Does not take into account terrain or VBL.
@@ -485,25 +589,19 @@ public abstract class Grid implements Cloneable {
     return distance;
   }
 
-  protected Area createHex(double x, double y, double radius, double rotation) {
-    GeneralPath hexPath = new GeneralPath();
+  protected Area createHex(double inRadius) {
+    double radius = inRadius * 2 / Math.sqrt(3);
 
-    for (int i = 0; i < 6; i++) {
-      if (i == 0) {
-        hexPath.moveTo(
-            x + radius * Math.cos(i * 2 * Math.PI / 6), y + radius * Math.sin(i * 2 * Math.PI / 6));
-      } else {
-        hexPath.lineTo(
-            x + radius * Math.cos(i * 2 * Math.PI / 6), y + radius * Math.sin(i * 2 * Math.PI / 6));
-      }
-    }
+    var hexPath = new Path2D.Double();
+    hexPath.moveTo(radius, 0);
+    hexPath.lineTo(radius * 0.5, inRadius);
+    hexPath.lineTo(-radius * 0.5, inRadius);
+    hexPath.lineTo(-radius, 0);
+    hexPath.lineTo(-radius * 0.5, -inRadius);
+    hexPath.lineTo(radius * 0.5, -inRadius);
+    hexPath.closePath();
 
-    if (rotation != 0) {
-      AffineTransform atArea = AffineTransform.getRotateInstance(rotation);
-      return new Area(atArea.createTransformedShape(hexPath));
-    } else {
-      return new Area(hexPath);
-    }
+    return new Area(hexPath);
   }
 
   private void fireGridChanged() {
@@ -750,7 +848,7 @@ public abstract class Grid implements Cloneable {
 
     if (range > 0) {
       final Stopwatch stopwatch = Stopwatch.createStarted();
-      final int gridRadius = (int) (range / getZone().getUnitsPerCell());
+      final int gridRadius = (int) (range / zone.getUnitsPerCell());
 
       if (scaleWithToken) {
         visibleArea = getScaledGridArea(token, gridRadius);
@@ -894,7 +992,7 @@ public abstract class Grid implements Cloneable {
    */
   protected WalkerMetric getCurrentMetric() {
     return MapTool.isPersonalServer()
-        ? AppPreferences.getMovementMetric()
+        ? AppPreferences.movementMetric.get()
         : MapTool.getServerPolicy().getMovementMetric();
   }
 
