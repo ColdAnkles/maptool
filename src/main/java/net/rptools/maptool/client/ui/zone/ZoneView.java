@@ -526,30 +526,19 @@ public class ZoneView {
       Point p = FogUtil.calculateVisionCenter(token, zone);
       Area visibleArea = sight.getVisionShape(token, zone);
       visibleArea.transform(AffineTransform.getTranslateInstance(p.x, p.y));
-      Set<Zone.TopologyType> excludeTypes = new HashSet<Zone.TopologyType>();
+      Set<String> excludeTypes = new HashSet<>();
       token
-          .getMapVBLImmunity()
+          .getGlobalVBLImmunity()
           .forEach(
               (key, value) -> {
                 if (value) {
-                  switch (key) {
-                    case "wall":
-                      excludeTypes.add(Zone.TopologyType.WALL_VBL);
-                      break;
-                    case "hill":
-                      excludeTypes.add(Zone.TopologyType.HILL_VBL);
-                      break;
-                    case "pit":
-                      excludeTypes.add(Zone.TopologyType.PIT_VBL);
-                      break;
-                    case "cover":
-                      excludeTypes.add(Zone.TopologyType.COVER_VBL);
-                      break;
-                  }
+                  excludeTypes.add(key);
                 }
               });
       Set<String> excludeTokens = token.getTokenVBLImmunity();
-      tokenVisibleArea = FogUtil.calculateVisibility(p, visibleArea, zone.prepareNodedTopologies());
+      tokenVisibleArea =
+          FogUtil.calculateVisibility(
+              p, visibleArea, zone.prepareNodedTopologies(excludeTokens, excludeTypes));
       tokenVisibleAreaCache.put(token.getId(), tokenVisibleArea);
     }
 

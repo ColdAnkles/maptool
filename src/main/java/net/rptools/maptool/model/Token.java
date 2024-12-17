@@ -224,9 +224,10 @@ public class Token implements Cloneable {
     setTokenVBLImmunity,
     addTokenVBLImmunity,
     removeTokenVBLImmunity,
-    toggleMapVBLImmunity,
-    setMapVBLImmunity,
-    clearTokenVBLImmunity
+    toggleGlobalVBLImmunity,
+    setGlobalVBLImmunity,
+    clearTokenVBLImmunity,
+    clearGlobalVBLImmunity
   }
 
   public static final Comparator<Token> NAME_COMPARATOR =
@@ -282,7 +283,7 @@ public class Token implements Cloneable {
 
   // endregion
 
-  private Map<String, Boolean> mapVBLImmunity = new HashMap<>();
+  private Map<String, Boolean> globalVBLImmunity = new HashMap<>();
 
   private Set<String> tokenVBLImmunity = new HashSet<>();
 
@@ -2271,28 +2272,38 @@ public class Token implements Cloneable {
     return tokenVBLImmunity;
   }
 
-  public void setMapVBLImmunity(String key, Boolean value) {
-    mapVBLImmunity.put(key, value);
+  public void setGlobalVBLImmunity(String key, Boolean value) {
+    globalVBLImmunity.put(key, value);
   }
 
-  public HashMap<String, Boolean> getMapVBLImmunity() {
-    if (!mapVBLImmunity.containsKey("wall")) {
-      mapVBLImmunity.put("wall", false);
+  public HashMap<String, Boolean> getGlobalVBLImmunity() {
+    if (!globalVBLImmunity.containsKey("WALL_VBL")) {
+      globalVBLImmunity.put("WALL_VBL", false);
     }
-    if (!mapVBLImmunity.containsKey("hill")) {
-      mapVBLImmunity.put("hill", false);
+    if (!globalVBLImmunity.containsKey("HILL_VBL")) {
+      globalVBLImmunity.put("HILL_VBL", false);
     }
-    if (!mapVBLImmunity.containsKey("pit")) {
-      mapVBLImmunity.put("pit", false);
+    if (!globalVBLImmunity.containsKey("PIT_VBL")) {
+      globalVBLImmunity.put("PIT_VBL", false);
     }
-    if (!mapVBLImmunity.containsKey("cover")) {
-      mapVBLImmunity.put("cover", false);
+    if (!globalVBLImmunity.containsKey("COVER_VBL")) {
+      globalVBLImmunity.put("COVER_VBL", false);
     }
-    return new HashMap<String, Boolean>(mapVBLImmunity);
+    if (!globalVBLImmunity.containsKey("PC")) {
+      globalVBLImmunity.put("PC", false);
+    }
+    if (!globalVBLImmunity.containsKey("NPC")) {
+      globalVBLImmunity.put("NPC", false);
+    }
+    return new HashMap<String, Boolean>(globalVBLImmunity);
   }
 
-  public void toggleMapVBLImmunity(String key) {
-    mapVBLImmunity.put(key, !mapVBLImmunity.get(key));
+  public void toggleGlobalVBLImmunity(String key) {
+    globalVBLImmunity.put(key, !globalVBLImmunity.get(key));
+  }
+
+  public void clearGlobalVBLImmunity() {
+    globalVBLImmunity.clear();
   }
 
   /**
@@ -2998,14 +3009,17 @@ public class Token implements Cloneable {
       case removeTokenVBLImmunity:
         removeTokenVBLImmunity(parameters.get(0).getStringValue());
         break;
-      case setMapVBLImmunity:
-        setMapVBLImmunity(parameters.get(0).getStringValue(), parameters.get(1).getBoolValue());
+      case setGlobalVBLImmunity:
+        setGlobalVBLImmunity(parameters.get(0).getStringValue(), parameters.get(1).getBoolValue());
         break;
-      case toggleMapVBLImmunity:
-        toggleMapVBLImmunity(parameters.get(0).getStringValue());
+      case toggleGlobalVBLImmunity:
+        toggleGlobalVBLImmunity(parameters.get(0).getStringValue());
         break;
       case clearTokenVBLImmunity:
         clearTokenVBLImmunity();
+        break;
+      case clearGlobalVBLImmunity:
+        clearGlobalVBLImmunity();
         break;
     }
     if (lightChanged) {
@@ -3114,10 +3128,10 @@ public class Token implements Cloneable {
             (value) -> {
               token.tokenVBLImmunity.add(value);
             });
-    dto.getMapVblImmunityMap()
+    dto.getGlobalVblImmunityMap()
         .forEach(
             (key, value) -> {
-              token.setMapVBLImmunity(key, value);
+              token.setGlobalVBLImmunity(key, value);
             });
 
     dto.getStateMap()
@@ -3280,7 +3294,7 @@ public class Token implements Cloneable {
       dto.setStatSheetProperties(StatSheetProperties.toDto(statSheet));
     }
 
-    dto.putAllMapVblImmunity(getMapVBLImmunity());
+    dto.putAllGlobalVblImmunity(getGlobalVBLImmunity());
     dto.addAllTokenVblImmunity(getTokenVBLImmunity());
 
     return dto.build();

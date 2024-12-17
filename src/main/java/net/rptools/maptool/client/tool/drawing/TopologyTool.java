@@ -224,15 +224,15 @@ public final class TopologyTool<StateT> extends AbstractDrawingLikeTool {
       g2.scale(renderer.getScale(), renderer.getScale());
 
       g2.setColor(AppStyle.tokenMblColor);
-      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.MBL, null));
+      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.MBL));
       g2.setColor(AppStyle.tokenTopologyColor);
-      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.WALL_VBL, null));
+      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.WALL_VBL));
       g2.setColor(AppStyle.tokenHillVblColor);
-      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.HILL_VBL, null));
+      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.HILL_VBL));
       g2.setColor(AppStyle.tokenPitVblColor);
-      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.PIT_VBL, null));
+      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.PIT_VBL));
       g2.setColor(AppStyle.tokenCoverVblColor);
-      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.COVER_VBL, null));
+      g2.fill(zone.getTokenMaskTopology(Zone.TopologyType.COVER_VBL));
 
       g2.setColor(AppStyle.topologyTerrainColor);
       g2.fill(zone.getMaskTopology(Zone.TopologyType.MBL));

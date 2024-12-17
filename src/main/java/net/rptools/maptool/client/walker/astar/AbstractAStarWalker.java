@@ -232,10 +232,13 @@ public abstract class AbstractAStarWalker extends AbstractZoneWalker {
             MapTool.getServerPolicy().getVblBlocksMove()
                 ? EnumSet.allOf(Zone.TopologyType.class)
                 : EnumSet.of(Zone.TopologyType.MBL);
+        Set<String> excludeTokens = new HashSet<>();
+        if (keyToken != null) {
+          excludeTokens.add(keyToken.getId().toString());
+        }
         this.preparedTopology =
             new MovementBlockingTopology(
-                zone.getWalls(),
-                zone.getMasks(topologyTypes, keyToken == null ? null : keyToken.getId()));
+                zone.getWalls(), zone.getMasks(topologyTypes, excludeTokens, new HashSet<>()));
       }
 
       var view = zoneRenderer.getPlayerView();

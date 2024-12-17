@@ -972,15 +972,20 @@ public class Zone {
    * All other tokens' topology will be included.
    *
    * @param types The type of masks to get.
-   * @param excluding
+   * @param excludeTokens set of Token IDs to exclude from mask collection
+   * @param excludeTypes set of mask and token types to exclude from mask collection
    * @return
    */
-  public List<MaskTopology> getMasks(Set<TopologyType> types, @Nullable GUID excluding) {
+  public List<MaskTopology> getMasks(
+      Set<TopologyType> types, Set<String> excludeTokens, Set<String> excludeTypes) {
     var masks = new ArrayList<MaskTopology>();
 
     for (var type : types) {
-      var mapArea = getMaskTopology(type);
-      var tokenArea = getTokenMaskTopology(type, excluding);
+      Area mapArea = null;
+      if (!excludeTypes.contains(type.toString())) {
+        mapArea = getMaskTopology(type);
+      }
+      var tokenArea = getTokenMaskTopology(type, excludeTokens, excludeTypes);
       if (mapArea != null) {
         tokenArea.add(mapArea);
       }
@@ -1002,13 +1007,27 @@ public class Zone {
    *
    * @return
    */
-  public NodedTopology prepareNodedTopologies() {
-    if (nodedTopology == null) {
-      var legacyMasks = getMasks(EnumSet.allOf(TopologyType.class), null);
-      nodedTopology = NodedTopology.prepare(walls, legacyMasks);
+  public NodedTopology prepareNodedTopologies(Set<String> excludeTokens, Set<String> excludeTypes) {
+    NodedTopology tempTopology = null;
+    if (nodedTopology == null || !excludeTokens.isEmpty() || !excludeTypes.isEmpty()) {
+      var legacyMasks = getMasks(EnumSet.allOf(TopologyType.class), excludeTokens, excludeTypes);
+      tempTopology = NodedTopology.prepare(walls, legacyMasks);
     }
+    if (nodedTopology == null
+        && tempTopology != null
+        && excludeTokens.isEmpty()
+        && excludeTypes.isEmpty()) {
+      nodedTopology = tempTopology;
+      return nodedTopology;
+    } else if (tempTopology != null && (!excludeTokens.isEmpty() || !excludeTypes.isEmpty())) {
+      return tempTopology;
+    } else {
+      return nodedTopology;
+    }
+  }
 
-    return nodedTopology;
+  public NodedTopology prepareNodedTopologies() {
+    return prepareNodedTopologies(new HashSet<>(), new HashSet<>());
   }
 
   public Area getMaskTopology(TopologyType topologyType) {
@@ -1061,10 +1080,12 @@ public class Zone {
     new MapToolEventBus().getMainEventBus().post(new MaskTopologyChanged(this));
   }
 
-  public Area getTokenMaskTopology(TopologyType type, @Nullable GUID excluding) {
+  public Area getTokenMaskTopology(
+      TopologyType type, Set<String> excludeTokens, Set<String> excludeTypes) {
     var result = new Area();
     for (var token : getAllTokens()) {
-      if (excluding != null && excluding.equals(token.getId())) {
+      if ((!excludeTokens.isEmpty() && excludeTokens.contains(token.getId().toString()))
+          || excludeTypes.contains(token.getType().toString())) {
         continue;
       }
 
@@ -1074,6 +1095,10 @@ public class Zone {
       }
     }
     return result;
+  }
+
+  public Area getTokenMaskTopology(TopologyType type) {
+    return getTokenMaskTopology(type, new HashSet<>(), new HashSet<>());
   }
 
   /**

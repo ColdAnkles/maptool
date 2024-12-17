@@ -169,10 +169,11 @@ public class Topology_Functions extends AbstractFunction {
         "addTokenVBLImmunity",
         "removeTokenVBLImmunity",
         "getTokenVBLImmunity",
-        "setMapVBLImmunity",
-        "toggleMapVBLImmunity",
-        "getMapVBLImmunity",
-        "clearTokenVBLImmunity");
+        "setGlobalVBLImmunity",
+        "toggleGlobalVBLImmunity",
+        "getGlobalVBLImmunity",
+        "clearTokenVBLImmunity",
+        "clearGlobalVBLImmunity");
   }
 
   public static Topology_Functions getInstance() {
@@ -226,12 +227,13 @@ public class Topology_Functions extends AbstractFunction {
     } else if (functionName.equalsIgnoreCase("setTokenVBLImmunity")
         || functionName.equalsIgnoreCase("addTokenVBLImmunity")
         || functionName.equalsIgnoreCase("removeTokenVBLImmunity")
-        || functionName.equalsIgnoreCase("setMapVBLImmunity")
-        || functionName.equalsIgnoreCase("toggleMapVBLImmunity")
-        || functionName.equalsIgnoreCase("clearTokenVBLImmunity")) {
+        || functionName.equalsIgnoreCase("setGlobalVBLImmunity")
+        || functionName.equalsIgnoreCase("toggleGlobalVBLImmunity")
+        || functionName.equalsIgnoreCase("clearTokenVBLImmunity")
+        || functionName.equalsIgnoreCase("clearGlobalVBLImmunity")) {
       childEvaluateSetTopologyImmunity(resolver, functionName, parameters);
     } else if (functionName.equalsIgnoreCase("getTokenVBLImmunity")
-        || functionName.equalsIgnoreCase("getMapVBLImmunity")) {
+        || functionName.equalsIgnoreCase("getGlobalVBLImmunity")) {
       return childEvaluateGetTopologyImmunity(resolver, functionName, parameters).toString();
     } else {
       throw new ParserException(
@@ -666,37 +668,40 @@ public class Topology_Functions extends AbstractFunction {
       for (JsonElement entry : setList) {
         newSet.add(entry.getAsString());
       }
-      token.setTokenVBLImmunity(newSet);
+      // token.setTokenVBLImmunity(newSet);
       MapTool.serverCommand()
           .updateTokenProperty(
               token, Token.Update.setTokenVBLImmunity, newSet.toString().replaceAll("^\\[|]$", ""));
     } else if (functionName.equalsIgnoreCase("addTokenVBLImmunity")) {
-      token.addTokenVBLImmunity(parameters.get(1).toString());
+      // token.addTokenVBLImmunity(parameters.get(1).toString());
       MapTool.serverCommand()
           .updateTokenProperty(
               token, Token.Update.addTokenVBLImmunity, parameters.get(1).toString());
     } else if (functionName.equalsIgnoreCase("removeTokenVBLImmunity")) {
-      token.removeTokenVBLImmunity(parameters.get(1).toString());
+      // token.removeTokenVBLImmunity(parameters.get(1).toString());
       MapTool.serverCommand()
           .updateTokenProperty(
               token, Token.Update.removeTokenVBLImmunity, parameters.get(1).toString());
-    } else if (functionName.equalsIgnoreCase("setMapVBLImmunity")) {
-      token.setMapVBLImmunity(
-          parameters.get(1).toString(), BigDecimal.ONE.equals(parameters.get(2)));
+    } else if (functionName.equalsIgnoreCase("setGlobalVBLImmunity")) {
+      // token.setGlobalVBLImmunity(parameters.get(1).toString(),
+      // BigDecimal.ONE.equals(parameters.get(2)));
       MapTool.serverCommand()
           .updateTokenProperty(
               token,
-              Token.Update.setMapVBLImmunity,
+              Token.Update.setGlobalVBLImmunity,
               parameters.get(1).toString(),
               BigDecimal.ONE.equals(parameters.get(2)));
-    } else if (functionName.equalsIgnoreCase("toggleMapVBLImmunity")) {
-      token.toggleMapVBLImmunity(parameters.get(1).toString());
+    } else if (functionName.equalsIgnoreCase("toggleGlobalVBLImmunity")) {
+      // token.toggleGlobalVBLImmunity(parameters.get(1).toString());
       MapTool.serverCommand()
           .updateTokenProperty(
-              token, Token.Update.toggleMapVBLImmunity, parameters.get(1).toString());
+              token, Token.Update.toggleGlobalVBLImmunity, parameters.get(1).toString());
     } else if (functionName.equalsIgnoreCase("clearTokenVBLImmunity")) {
-      token.clearTokenVBLImmunity();
+      // token.clearTokenVBLImmunity();
       MapTool.serverCommand().updateTokenProperty(token, Token.Update.clearTokenVBLImmunity);
+    } else if (functionName.equalsIgnoreCase("clearGlobalVBLImmunity")) {
+      // token.clearGlobalVBLImmunity();
+      MapTool.serverCommand().updateTokenProperty(token, Token.Update.clearGlobalVBLImmunity);
     }
   }
 
@@ -735,9 +740,9 @@ public class Topology_Functions extends AbstractFunction {
               (value) -> {
                 returnValue.add(value);
               });
-    } else if (functionName.equalsIgnoreCase("getMapVBLImmunity")) {
+    } else if (functionName.equalsIgnoreCase("getGlobalVBLImmunity")) {
       token
-          .getMapVBLImmunity()
+          .getGlobalVBLImmunity()
           .forEach(
               (key, value) -> {
                 if (value) {

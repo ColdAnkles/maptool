@@ -936,10 +936,17 @@ public class EditTokenDialog extends AbeillePanel<Token> {
     token.setHeroLabData(heroLabData);
 
     // Update VBL Immunity
-    token.setMapVBLImmunity("wall", getWallVBLImmunityCB().isSelected());
-    token.setMapVBLImmunity("hill", getHillVBLImmunityCB().isSelected());
-    token.setMapVBLImmunity("pit", getPitVBLImmunityCB().isSelected());
-    token.setMapVBLImmunity("cover", getCoverVBLImmunityCB().isSelected());
+    token.setGlobalVBLImmunity("WALL_VBL", getWallVBLImmunityCB().isSelected());
+    token.setGlobalVBLImmunity("HILL_VBL", getHillVBLImmunityCB().isSelected());
+    token.setGlobalVBLImmunity("PIT_VBL", getPitVBLImmunityCB().isSelected());
+    token.setGlobalVBLImmunity("COVER_VBL", getCoverVBLImmunityCB().isSelected());
+    token.setGlobalVBLImmunity("PC", getPCVBLImmunityCB().isSelected());
+    token.setGlobalVBLImmunity("NPC", getNPCVBLImmunityCB().isSelected());
+
+    if (getSelfVBLImmunityCB().isSelected()) {
+      tokenVBLImmunity.add(token.getId().toString());
+    }
+
     token.setTokenVBLImmunity(tokenVBLImmunity);
 
     // URI Access
@@ -1152,6 +1159,18 @@ public class EditTokenDialog extends AbeillePanel<Token> {
 
   public JCheckBox getPitVBLImmunityCB() {
     return (JCheckBox) getComponent("pitImmunityCB");
+  }
+
+  public JCheckBox getPCVBLImmunityCB() {
+    return (JCheckBox) getComponent("pcImmunityCB");
+  }
+
+  public JCheckBox getNPCVBLImmunityCB() {
+    return (JCheckBox) getComponent("npcImmunityCB");
+  }
+
+  public JCheckBox getSelfVBLImmunityCB() {
+    return (JCheckBox) getComponent("selfImmunityCB");
   }
 
   public JList getTokenVBLImmunityList() {
@@ -1812,12 +1831,23 @@ public class EditTokenDialog extends AbeillePanel<Token> {
 
   public void initVBLImmunityTab(Token thisToken) {
 
-    ((JCheckBox) getWallVBLImmunityCB()).setSelected(thisToken.getMapVBLImmunity().get("wall"));
-    ((JCheckBox) getCoverVBLImmunityCB()).setSelected(thisToken.getMapVBLImmunity().get("cover"));
-    ((JCheckBox) getHillVBLImmunityCB()).setSelected(thisToken.getMapVBLImmunity().get("hill"));
-    ((JCheckBox) getPitVBLImmunityCB()).setSelected(thisToken.getMapVBLImmunity().get("pit"));
+    ((JCheckBox) getWallVBLImmunityCB())
+        .setSelected(thisToken.getGlobalVBLImmunity().get("WALL_VBL"));
+    ((JCheckBox) getCoverVBLImmunityCB())
+        .setSelected(thisToken.getGlobalVBLImmunity().get("COVER_VBL"));
+    ((JCheckBox) getHillVBLImmunityCB())
+        .setSelected(thisToken.getGlobalVBLImmunity().get("HILL_VBL"));
+    ((JCheckBox) getPitVBLImmunityCB())
+        .setSelected(thisToken.getGlobalVBLImmunity().get("PIT_VBL"));
+    ((JCheckBox) getPCVBLImmunityCB()).setSelected(thisToken.getGlobalVBLImmunity().get("PC"));
+    ((JCheckBox) getNPCVBLImmunityCB()).setSelected(thisToken.getGlobalVBLImmunity().get("NPC"));
+    ((JCheckBox) getSelfVBLImmunityCB())
+        .setSelected(thisToken.getTokenVBLImmunity().contains(thisToken.getId().toString()));
 
     tokenVBLImmunity = thisToken.getTokenVBLImmunity();
+    if (tokenVBLImmunity.contains(thisToken.getId().toString())) {
+      tokenVBLImmunity.remove(thisToken.getId().toString());
+    }
     Object[] tokenVBLImmunitiesID = tokenVBLImmunity.toArray();
     ArrayList<String> activeListEntries = new ArrayList<>();
     ArrayList<String> inActiveListEntries = new ArrayList<>();
