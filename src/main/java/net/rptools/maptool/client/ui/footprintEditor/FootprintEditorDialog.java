@@ -454,7 +454,7 @@ public class FootprintEditorDialog extends JDialog {
     private static final Logger FPM_LOG = LoggerFactory.getLogger(FootprintManager.class);
     private static final Map<String, List<TokenFootprint>> CAMPAIGN_FOOTPRINTS =
         FootPrintToolbox.getCampaignFootprints();
-    protected static String currentGridType = AppPreferences.getDefaultGridType();
+    protected static String currentGridType = AppPreferences.defaultGridType.get();
     protected TokenFootprint currentFootprint;
     protected List<TokenFootprint> currentGridFootprintList = new LinkedList<>();
     protected Map<String, List<TokenFootprint>> gridMapToFootprintList = new HashMap<>();
@@ -896,13 +896,13 @@ public class FootprintEditorDialog extends JDialog {
     //    buttonHolder.setPreferredSize(layeredPane.getPreferredSize());
     buttonHolder.setBackground(new Color(80, 180, 80));
     buttonHolder.setBorder(BorderFactory.createLineBorder(Color.BLUE, 3, true));
-    String oldTheme = AppPreferences.getIconTheme();
-    AppPreferences.setIconTheme(RessourceManager.ROD_TAKEHARA);
+    String oldTheme = AppPreferences.iconTheme.get();
+    AppPreferences.iconTheme.set(RessourceManager.ROD_TAKEHARA);
     JButton zInButton = new JButton(RessourceManager.getBigIcon(Icons.TOOLBAR_HIDE_OFF));
     JButton zOutButton = new JButton(RessourceManager.getBigIcon(Icons.TOOLBAR_HIDE_ON));
     JButton zResetButton =
         new JButton(RessourceManager.getBigIcon(Icons.TOOLBAR_TOPOLOGY_OVAL_HOLLOW));
-    AppPreferences.setIconTheme(oldTheme);
+    AppPreferences.iconTheme.set(oldTheme);
     Dimension buttonSize = new Dimension(36, 36);
     Color bg = new Color(0, 0, 0, 0);
     zInButton.setBackground(bg);

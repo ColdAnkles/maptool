@@ -27,11 +27,9 @@ import net.rptools.maptool.tool.TokenFootprintCreator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Collection of static methods useful for dealing with token footprints
- */
+/** Collection of static methods useful for dealing with token footprints */
 public class FootPrintToolbox {
-  protected static final String DEFAULT_GRID_TYPE = AppPreferences.getDefaultGridType();
+  protected static final String DEFAULT_GRID_TYPE = AppPreferences.defaultGridType.get();
   private static final Logger log = LoggerFactory.getLogger(FootPrintToolbox.class);
   public static final CellPoint ZERO_CELLPOINT = new CellPoint(0, 0);
 
@@ -93,7 +91,7 @@ public class FootPrintToolbox {
     return MapTool.getCampaign()
             .getCampaignProperties()
             .getGridFootprints()
-            .get(AppPreferences.getDefaultGridType())
+            .get(AppPreferences.defaultGridType.get())
             .stream()
             .filter(TokenFootprint::isDefault)
             .findAny()
@@ -101,7 +99,7 @@ public class FootPrintToolbox {
                     MapTool.getCampaign()
                             .getCampaignProperties()
                             .getGridFootprints()
-                            .get(AppPreferences.getDefaultGridType())
+                            .get(AppPreferences.defaultGridType.get())
                             .getFirst());
   }
 
