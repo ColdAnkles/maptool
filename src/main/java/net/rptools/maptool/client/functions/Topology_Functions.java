@@ -668,23 +668,18 @@ public class Topology_Functions extends AbstractFunction {
       for (JsonElement entry : setList) {
         newSet.add(entry.getAsString());
       }
-      // token.setTokenVBLImmunity(newSet);
       MapTool.serverCommand()
           .updateTokenProperty(
               token, Token.Update.setTokenVBLImmunity, newSet.toString().replaceAll("^\\[|]$", ""));
     } else if (functionName.equalsIgnoreCase("addTokenVBLImmunity")) {
-      // token.addTokenVBLImmunity(parameters.get(1).toString());
       MapTool.serverCommand()
           .updateTokenProperty(
               token, Token.Update.addTokenVBLImmunity, parameters.get(1).toString());
     } else if (functionName.equalsIgnoreCase("removeTokenVBLImmunity")) {
-      // token.removeTokenVBLImmunity(parameters.get(1).toString());
       MapTool.serverCommand()
           .updateTokenProperty(
               token, Token.Update.removeTokenVBLImmunity, parameters.get(1).toString());
     } else if (functionName.equalsIgnoreCase("setGlobalVBLImmunity")) {
-      // token.setGlobalVBLImmunity(parameters.get(1).toString(),
-      // BigDecimal.ONE.equals(parameters.get(2)));
       MapTool.serverCommand()
           .updateTokenProperty(
               token,
@@ -692,15 +687,12 @@ public class Topology_Functions extends AbstractFunction {
               parameters.get(1).toString(),
               BigDecimal.ONE.equals(parameters.get(2)));
     } else if (functionName.equalsIgnoreCase("toggleGlobalVBLImmunity")) {
-      // token.toggleGlobalVBLImmunity(parameters.get(1).toString());
       MapTool.serverCommand()
           .updateTokenProperty(
               token, Token.Update.toggleGlobalVBLImmunity, parameters.get(1).toString());
     } else if (functionName.equalsIgnoreCase("clearTokenVBLImmunity")) {
-      // token.clearTokenVBLImmunity();
       MapTool.serverCommand().updateTokenProperty(token, Token.Update.clearTokenVBLImmunity);
     } else if (functionName.equalsIgnoreCase("clearGlobalVBLImmunity")) {
-      // token.clearGlobalVBLImmunity();
       MapTool.serverCommand().updateTokenProperty(token, Token.Update.clearGlobalVBLImmunity);
     }
   }

@@ -14,6 +14,7 @@
  */
 package net.rptools.maptool.client.script.javascript.api;
 
+import com.google.gson.JsonArray;
 import java.math.BigDecimal;
 import java.util.Iterator;
 import java.util.List;
@@ -349,5 +350,64 @@ public class JSAPIToken implements MapToolJSAPIInterface {
   @HostAccess.Export
   public String getType() {
     return this.token.getType().name();
+  }
+
+  @HostAccess.Export
+  public String getGlobalVBLImmunity() {
+    JsonArray returnValue = new JsonArray();
+    token
+        .getGlobalVBLImmunity()
+        .forEach(
+            (key, value) -> {
+              if (value) {
+                returnValue.add(key);
+              }
+            });
+    return returnValue.toString();
+  }
+
+  @HostAccess.Export
+  public String getTokenVBLImmunity() {
+    JsonArray returnValue = new JsonArray();
+    token
+        .getTokenVBLImmunity()
+        .forEach(
+            (value) -> {
+              returnValue.add(value);
+            });
+    return returnValue.toString();
+  }
+
+  @HostAccess.Export
+  public void setGlobalVBLImmunity(String vblSelector, boolean setTo) {
+    MapTool.serverCommand()
+        .updateTokenProperty(token, Token.Update.setGlobalVBLImmunity, vblSelector, setTo);
+  }
+
+  @HostAccess.Export
+  public void toggleGlobalVBLImmunity(String vblSelector) {
+    MapTool.serverCommand()
+        .updateTokenProperty(token, Token.Update.toggleGlobalVBLImmunity, vblSelector);
+  }
+
+  @HostAccess.Export
+  public void addTokenVBLImmunity(String tokenID) {
+    MapTool.serverCommand().updateTokenProperty(token, Token.Update.addTokenVBLImmunity, tokenID);
+  }
+
+  @HostAccess.Export
+  public void removeTokenVBLImmunity(String tokenID) {
+    MapTool.serverCommand()
+        .updateTokenProperty(token, Token.Update.removeTokenVBLImmunity, tokenID);
+  }
+
+  @HostAccess.Export
+  public void clearTokenVBLImmunity() {
+    MapTool.serverCommand().updateTokenProperty(token, Token.Update.clearTokenVBLImmunity);
+  }
+
+  @HostAccess.Export
+  public void clearGlobalVBLImmunity() {
+    MapTool.serverCommand().updateTokenProperty(token, Token.Update.clearGlobalVBLImmunity);
   }
 }
